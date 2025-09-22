@@ -13,4 +13,9 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.4" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="**\*.cs.example" />
+    <None Include="**\*.cs.example" />
+  </ItemGroup>
+
 </Project>
