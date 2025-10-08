@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Groovo.Models;
+using Groovo.Data;
 
 namespace Groovo.Controllers
 {
@@ -7,23 +8,23 @@ namespace Groovo.Controllers
     [Route("api/[controller]")]
     public class SongsController : ControllerBase
     {
-        // Laikinas dainų sarašas atmintyje
-        private static readonly List<Song> Songs = new();
+        // Singleton objektas, kuris laiko bendrą duomenų sąrašą atmintyje
+        private readonly InMemoryDatabase database = InMemoryDatabase.Instance;
 
         // GET: api/songs
         // Gražina visas dainas atmintyje įkeltas tik at runtime
         [HttpGet]
         public ActionResult<IEnumerable<Song>> GetAll()
         {
-            return Ok(Songs);
+            return Ok(database.Songs);
         }
 
         // GET: api/songs/{id}
-        // gražina specifinę dainą arba 404 jeigu nerado
+        // Gražina specifinę dainą arba 404 jeigu nerado
         [HttpGet("{id:guid}")]
         public ActionResult<Song> GetById(Guid id)
         {
-            var song = Songs.FirstOrDefault(s => s.Id == id);
+            var song = database.Songs.FirstOrDefault(s => s.Id == id);
             if (song == null)
                 return NotFound($"Song with ID {id} not found.");
 
@@ -39,7 +40,7 @@ namespace Groovo.Controllers
             newSong.CreatedAt = DateTime.UtcNow;
             newSong.UpdatedAt = DateTime.UtcNow;
 
-            Songs.Add(newSong);
+            database.Songs.Add(newSong);
 
             return CreatedAtAction(nameof(GetById), new { id = newSong.Id }, newSong);
         }
@@ -49,7 +50,7 @@ namespace Groovo.Controllers
         [HttpPut("{id:guid}")]
         public ActionResult Update(Guid id, [FromBody] Song updatedSong)
         {
-            var existing = Songs.FirstOrDefault(s => s.Id == id);
+            var existing = database.Songs.FirstOrDefault(s => s.Id == id);
             if (existing == null)
                 return NotFound($"Song with ID {id} not found.");
 
@@ -75,11 +76,11 @@ namespace Groovo.Controllers
         [HttpDelete("{id:guid}")]
         public ActionResult Delete(Guid id)
         {
-            var song = Songs.FirstOrDefault(s => s.Id == id);
+            var song = database.Songs.FirstOrDefault(s => s.Id == id);
             if (song == null)
                 return NotFound($"Song with ID {id} not found.");
 
-            Songs.Remove(song);
+            database.Songs.Remove(song);
             return NoContent();
         }
     }

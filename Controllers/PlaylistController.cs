@@ -1,30 +1,30 @@
 using Microsoft.AspNetCore.Mvc;
 using Groovo.Models;
+using Groovo.Data;
 
 namespace Groovo.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class PlaylistsController : ControllerBase
+    public class PlaylistController : ControllerBase
     {
-        // Laikinas dainų ir playlistu sarašas atmintyje
-        private static readonly List<Playlist> Playlists = new();
-        private static readonly List<Song> Songs = new();
+        // Singleton objektas, kuris laiko bendrą dainų ir playlistų sąrašą
+        private readonly InMemoryDatabase database = InMemoryDatabase.Instance;
 
         // GET: api/playlists
         // Gražina visus playistus atmintyje įkeltas tik at runtime
         [HttpGet]
         public ActionResult<IEnumerable<Playlist>> GetAll()
         {
-            return Ok(Playlists);
+            return Ok(database.Playlists);
         }
 
         // GET: api/playlists/{id}
-        //gražina specifinį playlist arba 404 jeigu nerado
+        // Gražina specifinį playlist arba 404 jeigu nerado
         [HttpGet("{id:guid}")]
         public ActionResult<Playlist> GetById(Guid id)
         {
-            var playlist = Playlists.FirstOrDefault(p => p.Id == id);
+            var playlist = database.Playlists.FirstOrDefault(p => p.Id == id);
             if (playlist == null)
                 return NotFound($"Playlist with ID {id} not found.");
 
@@ -39,7 +39,7 @@ namespace Groovo.Controllers
             newPlaylist.Id = Guid.NewGuid();
             newPlaylist.CreatedAt = DateTime.UtcNow;
             newPlaylist.UpdatedAt = DateTime.UtcNow;
-            Playlists.Add(newPlaylist);
+            database.Playlists.Add(newPlaylist);
 
             return CreatedAtAction(nameof(GetById), new { id = newPlaylist.Id }, newPlaylist);
         }
@@ -49,7 +49,7 @@ namespace Groovo.Controllers
         [HttpPut("{id:guid}")]
         public ActionResult Update(Guid id, [FromBody] Playlist updatedPlaylist)
         {
-            var existing = Playlists.FirstOrDefault(p => p.Id == id);
+            var existing = database.Playlists.FirstOrDefault(p => p.Id == id);
             if (existing == null)
                 return NotFound($"Playlist with ID {id} not found.");
 
@@ -71,11 +71,11 @@ namespace Groovo.Controllers
         [HttpDelete("{id:guid}")]
         public ActionResult Delete(Guid id)
         {
-            var playlist = Playlists.FirstOrDefault(p => p.Id == id);
+            var playlist = database.Playlists.FirstOrDefault(p => p.Id == id);
             if (playlist == null)
                 return NotFound($"Playlist with ID {id} not found.");
 
-            Playlists.Remove(playlist);
+            database.Playlists.Remove(playlist);
             return NoContent();
         }
 
@@ -87,7 +87,7 @@ namespace Groovo.Controllers
         [HttpGet("{id:guid}/songs")]
         public ActionResult<IEnumerable<Song>> GetSongsInPlaylist(Guid id)
         {
-            var playlist = Playlists.FirstOrDefault(p => p.Id == id);
+            var playlist = database.Playlists.FirstOrDefault(p => p.Id == id);
             if (playlist == null)
                 return NotFound($"Playlist with ID {id} not found.");
 
@@ -98,11 +98,11 @@ namespace Groovo.Controllers
         [HttpPost("{playlistId:guid}/songs/{songId:guid}")]
         public ActionResult AddSongToPlaylist(Guid playlistId, Guid songId)
         {
-            var playlist = Playlists.FirstOrDefault(p => p.Id == playlistId);
+            var playlist = database.Playlists.FirstOrDefault(p => p.Id == playlistId);
             if (playlist == null)
                 return NotFound($"Playlist with ID {playlistId} not found.");
 
-            var song = Songs.FirstOrDefault(s => s.Id == songId);
+            var song = database.Songs.FirstOrDefault(s => s.Id == songId);
             if (song == null)
                 return NotFound($"Song with ID {songId} not found.");
 
@@ -120,7 +120,7 @@ namespace Groovo.Controllers
         [HttpDelete("{playlistId:guid}/songs/{songId:guid}")]
         public ActionResult RemoveSongFromPlaylist(Guid playlistId, Guid songId)
         {
-            var playlist = Playlists.FirstOrDefault(p => p.Id == playlistId);
+            var playlist = database.Playlists.FirstOrDefault(p => p.Id == playlistId);
             if (playlist == null)
                 return NotFound($"Playlist with ID {playlistId} not found.");
 
