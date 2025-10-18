@@ -2,24 +2,22 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Groovo.Models;
 
-public class Playlist
+public class User
 {
     [Key]
     public Guid Id { get; set; }
-    
-    [MaxLength(500)]
-    public string Picture { get; set; }
-    
+
+    public bool IsAuthor { get; set; }
+
     [Required]
     [MaxLength(200)]
     public string Name { get; set; }
-    
-    [MaxLength(1000)]
-    public string Description { get; set; }
 
-    public bool IsActive { get; set; }
-    public bool IsPublic { get; set; }
-    public bool IsAlbum { get; set; }
+    [MaxLength(1000)]
+    public string Bio { get; set; }
+
+    [MaxLength(500)]
+    public string ImageUrl { get; set; }
 
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public DateTime CreatedAt { get; set; }
@@ -27,9 +25,7 @@ public class Playlist
     [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
     public DateTime UpdatedAt { get; set; }
 
-    public int TotalTime { get; set; } // Total duration in seconds
-
     // Navigation properties
-    public List<PlaylistSong> PlaylistSongs { get; set; }
+    public List<SongAuthor> SongAuthors { get; set; }
     public List<PlaylistOwner> PlaylistOwners { get; set; }
 }
