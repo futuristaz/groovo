@@ -1,45 +1,70 @@
 using Groovo.Filters;
+using Groovo.Data.Contexts;
+using Microsoft.EntityFrameworkCore;
 
 namespace Groovo;
 
 public class Program
 {
-  public static void Main(string[] args)
-  {
-
-    var builder = WebApplication.CreateBuilder(args);
-
-    builder.Services.AddControllers(options =>
+    public static void Main(string[] args)
     {
-      options.Filters.Add<ApiResponseFilter>();
-    });
+        var builder = WebApplication.CreateBuilder(args);
 
-    builder.Services.AddApiVersioning(options =>
-    {
-      options.AssumeDefaultVersionWhenUnspecified = true;
-      options.DefaultApiVersion = new Microsoft.AspNetCore.Mvc.ApiVersion(1, 0);
-      options.ReportApiVersions = true;
-    });
+        // Add Entity Framework
+        builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        {
+            //options.UseInMemoryDatabase("GroovoInMemoryDb");
+            options.UseSqlite("Data Source=:memory:");
+            
+            // Enable detailed error messages in development
+            if (builder.Environment.IsDevelopment())
+            {
+                options.EnableSensitiveDataLogging();
+                options.EnableDetailedErrors();
+            }
+        });
 
-    builder.Services.AddEndpointsApiExplorer();
-    builder.Services.AddSwaggerGen(c =>
-    {
-      c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "Latest version", Version = "v1" });
-    });
-    builder.Services.AddVersionedApiExplorer(options =>
-    {
-      options.GroupNameFormat = "'v'VVV";
-      options.SubstituteApiVersionInUrl = true;
-    });
+        builder.Services.AddControllers(options =>
+        {
+            options.Filters.Add<ApiResponseFilter>();
+        });
 
-    //builder.Services.AddScoped<ITaskService, TaskService>();
+        builder.Services.AddApiVersioning(options =>
+        {
+            options.AssumeDefaultVersionWhenUnspecified = true;
+            options.DefaultApiVersion = new Microsoft.AspNetCore.Mvc.ApiVersion(1, 0);
+            options.ReportApiVersions = true;
+        });
 
-    var app = builder.Build();
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen(c =>
+        {
+            c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "Groovo API", Version = "v1" });
+        });
+        builder.Services.AddVersionedApiExplorer(options =>
+        {
+            options.GroupNameFormat = "'v'VVV";
+            options.SubstituteApiVersionInUrl = true;
+        });
 
-    app.UseSwagger();
-    app.UseSwaggerUI();
-    app.MapControllers();
+        var app = builder.Build();
 
-    app.Run();
-  }
+        // Ensure database is created (seed data will be applied automatically)
+        using (var scope = app.Services.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            context.Database.OpenConnection();
+            context.Database.EnsureCreated();
+        }
+
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseSwagger();
+            app.UseSwaggerUI();
+        }
+
+        app.MapControllers();
+
+        app.Run();
+    }
 }
