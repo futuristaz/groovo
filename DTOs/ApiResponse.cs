@@ -1,4 +1,4 @@
-namespace Groovo.Models;
+namespace Groovo.DTOs;
 
 public class ApiResponse<T>
 {
