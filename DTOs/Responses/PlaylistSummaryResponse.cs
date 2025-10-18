@@ -1,17 +1,12 @@
 namespace Groovo.DTOs.Responses;
 
-public record PlaylistResponse(
+public record PlaylistSummaryResponse(
     Guid Id,
     string Name,
     string Description,
     string Picture,
-    bool IsActive,
     bool IsPublic,
     bool IsAlbum,
-    DateTime CreatedAt,
-    DateTime UpdatedAt,
     int TotalTime,
     int SongCount,
-    List<SongSummaryResponse> Songs,
-    List<UserSummaryResponse> Owners
 );
