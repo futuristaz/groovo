@@ -1,6 +1,9 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Groovo.Models;
 
-[Index(nameof(SongId), nameof(AuthorId), IsUnique = true)]
+[Index(nameof(SongId), nameof(UserId), IsUnique = true)]
 public class SongAuthor
 {
     public Guid SongId { get; set; }

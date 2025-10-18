@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace Groovo.Models;
 
 [Index(nameof(PlaylistId), nameof(SongId), IsUnique = true)]
