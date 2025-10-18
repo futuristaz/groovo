@@ -2,6 +2,9 @@
 
 ## Structure
 - `./Controllers` - API controllers
-- `./Models` - Data models and DTOs
+- `./Data` - Database context and configurations
+- `./Models` - Data entities
+- `./DTOs` - Data Transfer Objects
 - `./Services` - Business logic and data access
+- `./Helpers` - Utility classes
 - `./Filters` - Custom action filters
