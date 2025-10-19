@@ -1,12 +1,13 @@
 using Groovo.Filters;
 using Groovo.Data.Contexts;
+using Groovo.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Groovo;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -14,7 +15,7 @@ public class Program
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
         {
             //options.UseInMemoryDatabase("GroovoInMemoryDb");
-            options.UseSqlite("Data Source=:memory:");
+            options.UseSqlite("Data Source=development.sqlite");
             
             // Enable detailed error messages in development
             if (builder.Environment.IsDevelopment())
@@ -49,12 +50,23 @@ public class Program
 
         var app = builder.Build();
 
-        // Ensure database is created (seed data will be applied automatically)
+        // Ensure database is created and seed development data
         using (var scope = app.Services.CreateScope())
         {
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            context.Database.OpenConnection();
-            context.Database.EnsureCreated();
+            
+            // For development, recreate database with fresh seed data
+            if (app.Environment.IsDevelopment())
+            {
+                await context.Database.EnsureDeletedAsync();
+                await context.Database.EnsureCreatedAsync();
+                await DatabaseSeeder.SeedAsync(context);
+            }
+            else
+            {
+                // For production, just ensure database exists
+                await context.Database.EnsureCreatedAsync();
+            }
         }
 
         if (app.Environment.IsDevelopment())
