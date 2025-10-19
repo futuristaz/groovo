@@ -1,6 +1,7 @@
 using Groovo.Filters;
 using Groovo.Data.Contexts;
 using Groovo.Data;
+using Groovo.Hubs;
 using Microsoft.EntityFrameworkCore;
 
 namespace Groovo;
@@ -48,6 +49,8 @@ public class Program
             options.SubstituteApiVersionInUrl = true;
         });
 
+        builder.Services.AddSignalR();
+
         var app = builder.Build();
 
         // Ensure database is created and seed development data
@@ -76,6 +79,8 @@ public class Program
         }
 
         app.MapControllers();
+
+        app.MapHub<PlaylistHub>("/playlistHub");
 
         app.Run();
     }
