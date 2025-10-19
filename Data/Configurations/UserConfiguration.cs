@@ -9,8 +9,8 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
     public void Configure(EntityTypeBuilder<User> builder)
     {
         // Configure default values
-        builder.Property(u => u.IsAuthor)
-            .HasDefaultValue(false);
+        builder.Property(u => u.Role)
+            .HasDefaultValue(UserRole.User);
 
         // Configure timestamp properties for SQLite compatibility
         builder.Property(u => u.CreatedAt)

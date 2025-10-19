@@ -24,15 +24,15 @@ namespace Groovo.Controllers
         /// <summary>GET: /api/v1/users</summary>
         /// <returns>List of users</returns>
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<UserSummaryResponse>>> GetAll([FromQuery] bool? isAuthor = null)
+        public async Task<ActionResult<IEnumerable<UserSummaryResponse>>> GetAll([FromQuery] UserRole? role = null)
         {
             try
             {
                 var query = _context.Users.AsQueryable();
 
-                if (isAuthor.HasValue)
+                if (role.HasValue)
                 {
-                    query = query.Where(u => u.IsAuthor == isAuthor.Value);
+                    query = query.Where(u => u.Role == role.Value);
                 }
 
                 var users = await query
@@ -43,7 +43,7 @@ namespace Groovo.Controllers
                     u.Id,
                     u.Name,
                     u.ImageUrl ?? "",
-                    u.IsAuthor
+                    u.Role
                 )).ToList();
 
                 return Ok(userSummaries);
@@ -56,14 +56,14 @@ namespace Groovo.Controllers
         }
 
         /// <summary>GET: /api/v1/users/authors</summary>
-        /// <returns>List of authors (users with IsAuthor = true)</returns>
+        /// <returns>List of authors (users with Role = Author)</returns>
         [HttpGet("authors")]
         public async Task<ActionResult<IEnumerable<UserSummaryResponse>>> GetAuthors()
         {
             try
             {
                 var authors = await _context.Users
-                    .Where(u => u.IsAuthor)
+                    .Where(u => u.Role == UserRole.Author)
                     .OrderBy(u => u.Name)
                     .ToListAsync();
 
@@ -71,7 +71,7 @@ namespace Groovo.Controllers
                     a.Id,
                     a.Name,
                     a.ImageUrl ?? "",
-                    a.IsAuthor
+                    a.Role
                 )).ToList();
 
                 return Ok(authorSummaries);
@@ -101,7 +101,7 @@ namespace Groovo.Controllers
                     user.Name,
                     user.Bio ?? "",
                     user.ImageUrl ?? "",
-                    user.IsAuthor,
+                    user.Role,
                     user.CreatedAt,
                     user.UpdatedAt
                 );
@@ -133,7 +133,7 @@ namespace Groovo.Controllers
                     Name = request.Name,
                     Bio = request.Bio ?? "",
                     ImageUrl = request.ImageUrl ?? "",
-                    IsAuthor = request.IsAuthor
+                    Role = request.Role
                 };
 
                 _context.Users.Add(newUser);
@@ -144,7 +144,7 @@ namespace Groovo.Controllers
                     newUser.Name,
                     newUser.Bio ?? "",
                     newUser.ImageUrl ?? "",
-                    newUser.IsAuthor,
+                    newUser.Role,
                     newUser.CreatedAt,
                     newUser.UpdatedAt
                 );
@@ -267,7 +267,7 @@ namespace Groovo.Controllers
                         s.Length,
                         s.Plays,
                         s.Likes,
-                        s.SongAuthors.Where(sa => sa.User.IsAuthor)
+                        s.SongAuthors.Where(sa => sa.User.Role == UserRole.Author)
                             .Select(sa => sa.User.Name).ToList()
                     )).ToList();
 
@@ -327,7 +327,7 @@ namespace Groovo.Controllers
         /// <summary>GET: /api/v1/users/search</summary>
         /// <returns>List of users matching the search criteria</returns>
         [HttpGet("search")]
-        public async Task<ActionResult<IEnumerable<UserSummaryResponse>>> Search([FromQuery] string query, [FromQuery] bool? isAuthor = null)
+        public async Task<ActionResult<IEnumerable<UserSummaryResponse>>> Search([FromQuery] string query, [FromQuery] UserRole? role = null)
         {
             if (string.IsNullOrWhiteSpace(query))
             {
@@ -340,9 +340,9 @@ namespace Groovo.Controllers
                     .Where(u => u.Name.Contains(query) || 
                            (u.Bio != null && u.Bio.Contains(query)));
 
-                if (isAuthor.HasValue)
+                if (role.HasValue)
                 {
-                    queryable = queryable.Where(u => u.IsAuthor == isAuthor.Value);
+                    queryable = queryable.Where(u => u.Role == role.Value);
                 }
 
                 var users = await queryable
@@ -353,7 +353,7 @@ namespace Groovo.Controllers
                     u.Id,
                     u.Name,
                     u.ImageUrl ?? "",
-                    u.IsAuthor
+                    u.Role
                 )).ToList();
 
                 return Ok(userSummaries);
