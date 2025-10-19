@@ -12,14 +12,13 @@ namespace Groovo.Hubs
             await Clients.All.SendAsync("SongAdded", songTitle, artist);
         }
 
-        // Optional: notify others when someone connects
+        // notify others when someone connects and leaves
         public override async Task OnConnectedAsync()
         {
             await Clients.All.SendAsync("UserJoined", Context.ConnectionId);
             await base.OnConnectedAsync();
         }
 
-        // Optional: notify others when someone disconnects
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             await Clients.All.SendAsync("UserLeft", Context.ConnectionId);
