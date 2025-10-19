@@ -1,5 +1,4 @@
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace Groovo.Models;
 
@@ -11,6 +10,6 @@ public class PlaylistOwner
     public Guid UserId { get; set; }
 
     // Navigation properties   
-    public Playlist Playlist { get; set; }
-    public User User { get; set; }
+    public Playlist Playlist { get; set; } = default!;
+    public User User { get; set; } = default!;
 }

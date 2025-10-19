@@ -11,5 +11,12 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         // Configure default values
         builder.Property(u => u.IsAuthor)
             .HasDefaultValue(false);
+
+        // Configure timestamp properties for SQLite compatibility
+        builder.Property(u => u.CreatedAt)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            
+        builder.Property(u => u.UpdatedAt)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
     }
 }

@@ -11,6 +11,10 @@ public class PlaylistSongConfiguration : IEntityTypeConfiguration<PlaylistSong>
         // Configure index for ordering
         builder.HasIndex(ps => ps.Order);
 
+        // Configure timestamp properties for SQLite compatibility
+        builder.Property(ps => ps.AddedAt)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
         // Configure relationships
         builder.HasOne(ps => ps.Playlist)
                .WithMany(p => p.PlaylistSongs)

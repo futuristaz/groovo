@@ -9,14 +9,14 @@ public class Playlist
     public Guid Id { get; set; }
     
     [MaxLength(500)]
-    public string Picture { get; set; }
+    public string Picture { get; set; } = string.Empty;
     
     [Required]
     [MaxLength(200)]
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
     
     [MaxLength(1000)]
-    public string Description { get; set; }
+    public string Description { get; set; } = string.Empty;
 
     public bool IsActive { get; set; }
     public bool IsPublic { get; set; }
@@ -31,6 +31,6 @@ public class Playlist
     public int TotalTime { get; set; } // Total duration in seconds
 
     // Navigation properties
-    public List<PlaylistSong> PlaylistSongs { get; set; }
-    public List<PlaylistOwner> PlaylistOwners { get; set; }
+    public List<PlaylistSong> PlaylistSongs { get; set; } = new List<PlaylistSong>();
+    public List<PlaylistOwner> PlaylistOwners { get; set; } = new List<PlaylistOwner>();
 }

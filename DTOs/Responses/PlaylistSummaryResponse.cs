@@ -8,5 +8,5 @@ public record PlaylistSummaryResponse(
     bool IsPublic,
     bool IsAlbum,
     int TotalTime,
-    int SongCount,
+    int SongCount
 );

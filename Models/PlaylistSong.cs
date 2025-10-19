@@ -1,5 +1,5 @@
-using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace Groovo.Models;
 
@@ -16,6 +16,6 @@ public class PlaylistSong
     public DateTime AddedAt { get; set; }
     
     // Navigation properties
-    public Playlist Playlist { get; set; }
-    public Song Song { get; set; }
+    public Playlist Playlist { get; set; } = default!;
+    public Song Song { get; set; } = default!;
 }

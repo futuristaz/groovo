@@ -11,5 +11,12 @@ public class SongConfiguration : IEntityTypeConfiguration<Song>
         // Configure default values
         builder.Property(s => s.IsActive)
             .HasDefaultValue(true);
+
+        // Configure timestamp properties for SQLite compatibility
+        builder.Property(s => s.CreatedAt)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            
+        builder.Property(s => s.UpdatedAt)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
     }
 }

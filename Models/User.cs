@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Groovo.Models;
 
@@ -12,21 +11,18 @@ public class User
 
     [Required]
     [MaxLength(200)]
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     [MaxLength(1000)]
-    public string Bio { get; set; }
+    public string Bio { get; set; } = string.Empty;
 
     [MaxLength(500)]
-    public string ImageUrl { get; set; }
+    public string ImageUrl { get; set; } = string.Empty;
 
-    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public DateTime CreatedAt { get; set; }
-
-    [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
     public DateTime UpdatedAt { get; set; }
 
     // Navigation properties
-    public List<SongAuthor> SongAuthors { get; set; }
-    public List<PlaylistOwner> PlaylistOwners { get; set; }
+    public List<SongAuthor> SongAuthors { get; set; } = new List<SongAuthor>();
+    public List<PlaylistOwner> PlaylistOwners { get; set; } = new List<PlaylistOwner>();
 }

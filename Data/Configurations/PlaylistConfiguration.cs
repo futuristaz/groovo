@@ -17,5 +17,12 @@ public class PlaylistConfiguration : IEntityTypeConfiguration<Playlist>
             
         builder.Property(p => p.IsAlbum)
             .HasDefaultValue(false);
+
+        // Configure timestamp properties for SQLite compatibility
+        builder.Property(p => p.CreatedAt)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            
+        builder.Property(p => p.UpdatedAt)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
     }
 }
