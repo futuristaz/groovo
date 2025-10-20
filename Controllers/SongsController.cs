@@ -44,7 +44,7 @@ namespace Groovo.Controllers
                     s.Length,
                     s.Plays,
                     s.Likes,
-                    s.SongAuthors.Where(sa => sa.User.IsAuthor)
+                    s.SongAuthors.Where(sa => sa.User.Role == UserRole.Author)
                         .Select(sa => sa.User.Name)
                         .ToList()
                 )).ToList();
@@ -90,7 +90,7 @@ namespace Groovo.Controllers
                     song.Length,
                     song.Plays,
                     song.Likes,
-                    song.SongAuthors.Where(sa => sa.User.IsAuthor).Select(sa => new AuthorResponse(
+                    song.SongAuthors.Where(sa => sa.User.Role == UserRole.Author).Select(sa => new AuthorResponse(
                         sa.User.Id,
                         sa.User.Name,
                         sa.User.Bio,
@@ -124,7 +124,7 @@ namespace Groovo.Controllers
                 if (request.AuthorIds != null && request.AuthorIds.Any())
                 {
                     var existingAuthorIds = await _context.Users
-                        .Where(u => request.AuthorIds.Contains(u.Id) && u.IsAuthor)
+                        .Where(u => request.AuthorIds.Contains(u.Id) && u.Role == UserRole.Author)
                         .Select(u => u.Id)
                         .ToListAsync();
 
@@ -197,7 +197,7 @@ namespace Groovo.Controllers
                     createdSong.Length,
                     createdSong.Plays,
                     createdSong.Likes,
-                    createdSong.SongAuthors.Where(sa => sa.User.IsAuthor).Select(sa => new AuthorResponse(
+                    createdSong.SongAuthors.Where(sa => sa.User.Role == UserRole.Author).Select(sa => new AuthorResponse(
                         sa.User.Id,
                         sa.User.Name,
                         sa.User.Bio,
@@ -329,7 +329,7 @@ namespace Groovo.Controllers
                     s.Length,
                     s.Plays,
                     s.Likes,
-                    s.SongAuthors.Where(sa => sa.User.IsAuthor)
+                    s.SongAuthors.Where(sa => sa.User.Role == UserRole.Author)
                         .Select(sa => sa.User.Name)
                         .ToList()
                 )).ToList();

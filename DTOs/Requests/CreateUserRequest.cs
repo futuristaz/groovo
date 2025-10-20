@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Groovo.Models;
 
 namespace Groovo.DTOs.Requests;
 
@@ -14,5 +15,5 @@ public class CreateUserRequest
     [MaxLength(500, ErrorMessage = "Image URL cannot exceed 500 characters")]
     public string? ImageUrl { get; set; }
 
-    public bool IsAuthor { get; set; } = false;
+    public UserRole Role { get; set; } = UserRole.User;
 }
