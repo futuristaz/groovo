@@ -1,3 +1,5 @@
+using Groovo.Models;
+
 namespace Groovo.DTOs.Responses;
 
 public record UserResponse(
@@ -5,7 +7,7 @@ public record UserResponse(
     string Name,
     string Bio,
     string ImageUrl,
-    bool IsAuthor,
+    UserRole Role,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );

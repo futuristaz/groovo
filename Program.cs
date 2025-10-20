@@ -2,7 +2,9 @@ using Groovo.Filters;
 using Groovo.Data.Contexts;
 using Groovo.Data;
 using Groovo.Hubs;
+using Groovo.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 
 namespace Groovo;
 
@@ -26,6 +28,13 @@ public class Program
             }
         });
 
+        // Register services
+        builder.Services.AddScoped<IJwtService, JwtService>();
+        builder.Services.AddScoped<IAuthService, AuthService>();
+        
+        // Add Identity hasher
+        builder.Services.AddScoped<IPasswordHasher<Models.User>, PasswordHasher<Models.User>>();
+
         builder.Services.AddControllers(options =>
         {
             options.Filters.Add<ApiResponseFilter>();
@@ -42,6 +51,7 @@ public class Program
         builder.Services.AddSwaggerGen(c =>
         {
             c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "Groovo API", Version = "v1" });
+            c.SchemaFilter<EnumDescriptionSchemaFilter>();
         });
         builder.Services.AddVersionedApiExplorer(options =>
         {

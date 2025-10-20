@@ -95,14 +95,14 @@ namespace Groovo.Controllers
                         ps.Song.Length,
                         ps.Song.Plays,
                         ps.Song.Likes,
-                        ps.Song.SongAuthors?.Where(sa => sa.User.IsAuthor)
+                        ps.Song.SongAuthors?.Where(sa => sa.User.Role == UserRole.Author)
                             .Select(sa => sa.User.Name).ToList() ?? new List<string>()
                     )).ToList() ?? new List<SongSummaryResponse>(),
                     playlist.PlaylistOwners?.Select(po => new UserSummaryResponse(
                         po.User.Id,
                         po.User.Name,
                         po.User.ImageUrl ?? "",
-                        po.User.IsAuthor
+                        po.User.Role
                     )).ToList() ?? new List<UserSummaryResponse>()
                 );
 
@@ -203,7 +203,7 @@ namespace Groovo.Controllers
                         po.User.Id,
                         po.User.Name,
                         po.User.ImageUrl ?? "",
-                        po.User.IsAuthor
+                        po.User.Role
                     )).ToList() ?? new List<UserSummaryResponse>()
                 );
 
@@ -331,7 +331,7 @@ namespace Groovo.Controllers
                         ps.Song.Length,
                         ps.Song.Plays,
                         ps.Song.Likes,
-                        ps.Song.SongAuthors?.Where(sa => sa.User.IsAuthor)
+                        ps.Song.SongAuthors?.Where(sa => sa.User.Role == UserRole.Author)
                             .Select(sa => sa.User.Name).ToList() ?? new List<string>()
                     )).ToList();
 
