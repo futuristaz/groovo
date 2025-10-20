@@ -87,14 +87,7 @@ namespace Groovo.Controllers
                     playlist.TotalTime,
                     playlist.PlaylistSongs?.Count ?? 0,
                     playlist.PlaylistSongs?.Select(ps => new SongSummaryResponse(
-                        ps.Song.Id,
-                        ps.Song.Name,
-                        ps.Song.Genre,
-                        ps.Song.ReleaseDate,
-                        ps.Song.Picture,
-                        ps.Song.Length,
-                        ps.Song.Plays,
-                        ps.Song.Likes,
+                        ps.Song,
                         ps.Song.SongAuthors?.Where(sa => sa.User.Role == UserRole.Author)
                             .Select(sa => sa.User.Name).ToList() ?? new List<string>()
                     )).ToList() ?? new List<SongSummaryResponse>(),
@@ -154,7 +147,7 @@ namespace Groovo.Controllers
                     IsPublic = request.IsPublic,
                     IsAlbum = request.IsAlbum,
                     IsActive = true,
-                    TotalTime = 0
+                    TotalDuration = 0
                 };
 
                 _context.Playlists.Add(newPlaylist);
@@ -323,14 +316,7 @@ namespace Groovo.Controllers
                     .Where(ps => ps.Song.IsActive)
                     .OrderBy(ps => ps.Order)
                     .Select(ps => new SongSummaryResponse(
-                        ps.Song.Id,
-                        ps.Song.Name,
-                        ps.Song.Genre,
-                        ps.Song.ReleaseDate,
-                        ps.Song.Picture,
-                        ps.Song.Length,
-                        ps.Song.Plays,
-                        ps.Song.Likes,
+                        ps.Song,
                         ps.Song.SongAuthors?.Where(sa => sa.User.Role == UserRole.Author)
                             .Select(sa => sa.User.Name).ToList() ?? new List<string>()
                     )).ToList();
@@ -383,8 +369,8 @@ namespace Groovo.Controllers
 
                 _context.PlaylistSongs.Add(playlistSong);
 
-                // Update playlist total time
-                playlist.TotalTime += song.Length;
+                // Update playlist total time using Duration operators
+                playlist.TotalDuration += song.Duration;
 
                 await _context.SaveChangesAsync();
 
@@ -424,7 +410,7 @@ namespace Groovo.Controllers
                 // Update playlist total time
                 if (song != null)
                 {
-                    playlist.TotalTime = Math.Max(0, playlist.TotalTime - song.Length);
+                    playlist.TotalDuration -= song.Duration;
                 }
 
                 await _context.SaveChangesAsync();

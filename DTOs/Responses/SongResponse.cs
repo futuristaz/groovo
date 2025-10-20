@@ -1,3 +1,5 @@
+using Groovo.Models;
+
 namespace Groovo.DTOs.Responses;
 
 public record SongResponse(
@@ -13,8 +15,31 @@ public record SongResponse(
     bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    int Length,
+    string Duration, // Display as formatted string
+    int DurationSeconds, // Keep raw seconds for compatibility
     int Plays,
     int Likes,
     List<AuthorResponse> Authors
-);
+)
+{
+    // Constructor from entity
+    public SongResponse(Song song, List<AuthorResponse> authors) : this(
+        song.Id,
+        song.Name,
+        song.Description,
+        song.ReleaseDate,
+        song.Picture,
+        song.Album,
+        song.Genre,
+        song.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(),
+        song.AudioUrl,
+        song.IsActive,
+        song.CreatedAt,
+        song.UpdatedAt,
+        song.Duration.ToString(),
+        song.Duration.TotalSeconds,
+        song.Plays,
+        song.Likes,
+        authors
+    ) { }
+};
