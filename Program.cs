@@ -3,6 +3,7 @@ using Groovo.Data.Contexts;
 using Groovo.Data;
 using Groovo.Hubs;
 using Groovo.Services;
+using Groovo.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 
@@ -31,9 +32,15 @@ public class Program
         // Register services
         builder.Services.AddScoped<IJwtService, JwtService>();
         builder.Services.AddScoped<IAuthService, AuthService>();
-        
-        // Add Identity hasher
         builder.Services.AddScoped<IPasswordHasher<Models.User>, PasswordHasher<Models.User>>();
+
+        builder.Services.AddJwtAuthentication(builder.Configuration);
+        builder.Services.AddAuthorization(options =>
+        {
+            options.AddPolicy("AdminPolicy", policy => policy.RequireRole("Admin"));
+            options.AddPolicy("AuthorPolicy", policy => policy.RequireRole("Author"));
+            options.AddPolicy("UserPolicy", policy => policy.RequireRole("User"));
+        });
 
         builder.Services.AddControllers(options =>
         {
@@ -87,6 +94,10 @@ public class Program
             app.UseSwagger();
             app.UseSwaggerUI();
         }
+
+        // Use official Authentication and Authorization middleware
+        app.UseAuthentication();
+        app.UseAuthorization();
 
         app.MapControllers();
 
