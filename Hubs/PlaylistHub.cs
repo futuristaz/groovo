@@ -80,7 +80,7 @@ public class PlaylistHub : Hub
                 po.User.Id,
                 po.User.Name,
                 po.User.Bio ?? string.Empty,
-                po.User.IsActive
+                po.User.IsAuthor
             ))
             .ToList();
 
