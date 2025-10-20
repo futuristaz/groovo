@@ -1,6 +1,7 @@
 using Groovo.Filters;
 using Groovo.Data.Contexts;
 using Groovo.Data;
+using Groovo.Hubs;
 using Groovo.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
@@ -18,7 +19,7 @@ public class Program
         {
             //options.UseInMemoryDatabase("GroovoInMemoryDb");
             options.UseSqlite("Data Source=development.sqlite");
-            
+
             // Enable detailed error messages in development
             if (builder.Environment.IsDevelopment())
             {
@@ -45,7 +46,7 @@ public class Program
             options.DefaultApiVersion = new Microsoft.AspNetCore.Mvc.ApiVersion(1, 0);
             options.ReportApiVersions = true;
         });
-
+        
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(c =>
         {
@@ -58,13 +59,15 @@ public class Program
             options.SubstituteApiVersionInUrl = true;
         });
 
+        builder.Services.AddSignalR();
+
         var app = builder.Build();
 
         // Ensure database is created and seed development data
         using (var scope = app.Services.CreateScope())
         {
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            
+
             // For development, recreate database with fresh seed data
             if (app.Environment.IsDevelopment())
             {
@@ -78,7 +81,7 @@ public class Program
                 await context.Database.EnsureCreatedAsync();
             }
         }
-
+        
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
@@ -87,6 +90,8 @@ public class Program
 
         app.MapControllers();
 
+        app.MapHub<PlaylistHub>("/live");
+        
         app.Run();
     }
 }
