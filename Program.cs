@@ -5,17 +5,19 @@ using Groovo.Hubs;
 using Microsoft.EntityFrameworkCore;
 
 namespace Groovo;
+
 public class Program
 {
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+
         // Add Entity Framework
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
         {
             //options.UseInMemoryDatabase("GroovoInMemoryDb");
             options.UseSqlite("Data Source=development.sqlite");
-            
+
             // Enable detailed error messages in development
             if (builder.Environment.IsDevelopment())
             {
@@ -23,16 +25,19 @@ public class Program
                 options.EnableDetailedErrors();
             }
         });
+
         builder.Services.AddControllers(options =>
         {
             options.Filters.Add<ApiResponseFilter>();
         });
+
         builder.Services.AddApiVersioning(options =>
         {
             options.AssumeDefaultVersionWhenUnspecified = true;
             options.DefaultApiVersion = new Microsoft.AspNetCore.Mvc.ApiVersion(1, 0);
             options.ReportApiVersions = true;
         });
+        
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(c =>
         {
@@ -52,7 +57,7 @@ public class Program
         using (var scope = app.Services.CreateScope())
         {
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            
+
             // For development, recreate database with fresh seed data
             if (app.Environment.IsDevelopment())
             {
@@ -66,6 +71,7 @@ public class Program
                 await context.Database.EnsureCreatedAsync();
             }
         }
+        
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
