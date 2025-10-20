@@ -5,13 +5,11 @@ using Groovo.Hubs;
 using Microsoft.EntityFrameworkCore;
 
 namespace Groovo;
-
 public class Program
 {
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
-
         // Add Entity Framework
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
         {
@@ -25,19 +23,16 @@ public class Program
                 options.EnableDetailedErrors();
             }
         });
-
         builder.Services.AddControllers(options =>
         {
             options.Filters.Add<ApiResponseFilter>();
         });
-
         builder.Services.AddApiVersioning(options =>
         {
             options.AssumeDefaultVersionWhenUnspecified = true;
             options.DefaultApiVersion = new Microsoft.AspNetCore.Mvc.ApiVersion(1, 0);
             options.ReportApiVersions = true;
         });
-
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(c =>
         {
@@ -71,7 +66,6 @@ public class Program
                 await context.Database.EnsureCreatedAsync();
             }
         }
-
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
@@ -80,8 +74,8 @@ public class Program
 
         app.MapControllers();
 
-        app.MapHub<PlaylistHub>("/playlistHub");
-
+        app.MapHub<PlaylistHub>("/live");
+        
         app.Run();
     }
 }
