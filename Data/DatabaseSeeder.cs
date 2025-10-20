@@ -21,6 +21,8 @@ public static class DatabaseSeeder
                 Id = new Guid("11111111-1111-1111-1111-111111111111"),
                 Name = "John Lennon",
                 Bio = "English singer and songwriter",
+                Email = "john.lennon@beatles.com",
+                PasswordHash = "demo-password-hash-not-for-production",
                 Role = UserRole.Author,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -30,6 +32,8 @@ public static class DatabaseSeeder
                 Id = new Guid("22222222-2222-2222-2222-222222222222"),
                 Name = "Paul McCartney",
                 Bio = "English singer and songwriter",
+                Email = "paul.mccartney@beatles.com",
+                PasswordHash = "demo-password-hash-not-for-production",
                 Role = UserRole.Author,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -39,6 +43,8 @@ public static class DatabaseSeeder
                 Id = new Guid("33333333-3333-3333-3333-333333333333"),
                 Name = "Freddie Mercury",
                 Bio = "British singer and songwriter",
+                Email = "freddie.mercury@queen.com",
+                PasswordHash = "demo-password-hash-not-for-production",
                 Role = UserRole.Author,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -48,6 +54,8 @@ public static class DatabaseSeeder
                 Id = new Guid("44444444-4444-4444-4444-444444444444"),
                 Name = "David Bowie",
                 Bio = "English singer and songwriter",
+                Email = "david.bowie@starman.com",
+                PasswordHash = "demo-password-hash-not-for-production",
                 Role = UserRole.Author,
                 CreatedAt = now,
                 UpdatedAt = now

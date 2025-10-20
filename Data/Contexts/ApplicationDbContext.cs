@@ -12,6 +12,7 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<SongAuthor> SongAuthors { get; set; }
     public DbSet<PlaylistSong> PlaylistSongs { get; set; }
     public DbSet<PlaylistOwner> PlaylistOwners { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
