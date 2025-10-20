@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 
 namespace Groovo.Models;
@@ -42,6 +43,7 @@ public class Song
     public int Length { get; set; }
     
     // Duration as a struct
+    [NotMapped]
     public Duration Duration 
     { 
         get => new Duration(Length); 

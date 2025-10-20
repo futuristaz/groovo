@@ -31,6 +31,7 @@ public class Playlist
     public int TotalTime { get; set; }
     
     // Total duration as a struct
+    [NotMapped]
     public Duration TotalDuration 
     { 
         get => new Duration(TotalTime); 
