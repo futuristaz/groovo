@@ -259,14 +259,7 @@ namespace Groovo.Controllers
                     .Select(sa => sa.Song)
                     .OrderByDescending(s => s.ReleaseDate)
                     .Select(s => new SongSummaryResponse(
-                        s.Id,
-                        s.Name,
-                        s.Genre,
-                        s.ReleaseDate,
-                        s.Picture,
-                        s.Length,
-                        s.Plays,
-                        s.Likes,
+                        s,
                         s.SongAuthors.Where(sa => sa.User.Role == UserRole.Author)
                             .Select(sa => sa.User.Name).ToList()
                     )).ToList();

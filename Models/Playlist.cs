@@ -28,7 +28,14 @@ public class Playlist
     [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
     public DateTime UpdatedAt { get; set; }
 
-    public int TotalTime { get; set; } // Total duration in seconds
+    public int TotalTime { get; set; }
+    
+    // Total duration as a struct
+    public Duration TotalDuration 
+    { 
+        get => new Duration(TotalTime); 
+        set => TotalTime = value.TotalSeconds; 
+    }
 
     // Navigation properties
     public List<PlaylistSong> PlaylistSongs { get; set; } = new List<PlaylistSong>();

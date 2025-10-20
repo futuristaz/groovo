@@ -50,7 +50,8 @@ public class PlaylistHub : Hub
             Picture = request.Picture ?? string.Empty,
             IsPublic = request.IsPublic,
             IsAlbum = request.IsAlbum,
-            IsActive = true
+            IsActive = true,
+            TotalDuration = 0  // Initialize with Duration struct
         };
 
         if (request.OwnerIds != null)
@@ -79,8 +80,8 @@ public class PlaylistHub : Hub
             .Select(po => new UserSummaryResponse(
                 po.User.Id,
                 po.User.Name,
-                po.User.Bio ?? string.Empty,
-                po.User.IsAuthor
+                po.User.ImageUrl ?? string.Empty,
+                po.User.Role
             ))
             .ToList();
 
@@ -137,7 +138,7 @@ public class PlaylistHub : Hub
         };
 
         _dbContext.PlaylistSongs.Add(playlistSong);
-        playlist.TotalTime += song.Length;
+        playlist.TotalDuration += song.Duration;
 
         await _dbContext.SaveChangesAsync();
 
@@ -158,21 +159,7 @@ public class PlaylistHub : Hub
                 .ToList();
 
         var response = new SongResponse(
-            song.Id,
-            song.Name,
-            song.Description,
-            song.ReleaseDate,
-            song.Picture,
-            song.Album,
-            song.Genre,
-            tags,
-            song.AudioUrl,
-            song.IsActive,
-            song.CreatedAt,
-            song.UpdatedAt,
-            song.Length,
-            song.Plays,
-            song.Likes,
+            song,
             authors
         );
 
@@ -212,8 +199,7 @@ public class PlaylistHub : Hub
         var removedOrder = playlistSong.Order;
 
         _dbContext.PlaylistSongs.Remove(playlistSong);
-        playlist.TotalTime -= song.Length;
-        if (playlist.TotalTime < 0) playlist.TotalTime = 0;
+        playlist.TotalDuration -= song.Duration;
 
         // Reorder remaining songs
         var songsToReorder = playlist.PlaylistSongs
@@ -244,21 +230,7 @@ public class PlaylistHub : Hub
                 .ToList();
 
         var response = new SongResponse(
-            song.Id,
-            song.Name,
-            song.Description,
-            song.ReleaseDate,
-            song.Picture,
-            song.Album,
-            song.Genre,
-            tags,
-            song.AudioUrl,
-            song.IsActive,
-            song.CreatedAt,
-            song.UpdatedAt,
-            song.Length,
-            song.Plays,
-            song.Likes,
+            song,
             authors
         );
 

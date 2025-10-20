@@ -36,14 +36,7 @@ namespace Groovo.Controllers
                     .ToListAsync();
 
                 var songSummaryResponses = songs.Select(s => new SongSummaryResponse(
-                    s.Id,
-                    s.Name,
-                    s.Genre,
-                    s.ReleaseDate,
-                    s.Picture,
-                    s.Length,
-                    s.Plays,
-                    s.Likes,
+                    s,
                     s.SongAuthors.Where(sa => sa.User.Role == UserRole.Author)
                         .Select(sa => sa.User.Name)
                         .ToList()
@@ -75,21 +68,7 @@ namespace Groovo.Controllers
                     return NotFound($"Song with ID {id} not found.");
 
                 var songResponse = new SongResponse(
-                    song.Id,
-                    song.Name,
-                    song.Description,
-                    song.ReleaseDate,
-                    song.Picture,
-                    song.Album,
-                    song.Genre,
-                    song.Tags?.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList() ?? new List<string>(),
-                    song.AudioUrl,
-                    song.IsActive,
-                    song.CreatedAt,
-                    song.UpdatedAt,
-                    song.Length,
-                    song.Plays,
-                    song.Likes,
+                    song,
                     song.SongAuthors.Where(sa => sa.User.Role == UserRole.Author).Select(sa => new AuthorResponse(
                         sa.User.Id,
                         sa.User.Name,
@@ -148,7 +127,7 @@ namespace Groovo.Controllers
                     Genre = request.Genre,
                     Tags = string.Join(",", request.Tags), // Convert list to comma-separated string
                     AudioUrl = request.AudioUrl,
-                    Length = request.Length,
+                    Duration = new Models.Duration(request.Length), // Use Duration struct
                     IsActive = true
                 };
 
@@ -182,21 +161,7 @@ namespace Groovo.Controllers
                 }
 
                 var songResponse = new SongResponse(
-                    createdSong.Id,
-                    createdSong.Name,
-                    createdSong.Description,
-                    createdSong.ReleaseDate,
-                    createdSong.Picture,
-                    createdSong.Album,
-                    createdSong.Genre,
-                    createdSong.Tags?.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList() ?? new List<string>(),
-                    createdSong.AudioUrl,
-                    createdSong.IsActive,
-                    createdSong.CreatedAt,
-                    createdSong.UpdatedAt,
-                    createdSong.Length,
-                    createdSong.Plays,
-                    createdSong.Likes,
+                    createdSong,
                     createdSong.SongAuthors.Where(sa => sa.User.Role == UserRole.Author).Select(sa => new AuthorResponse(
                         sa.User.Id,
                         sa.User.Name,
@@ -239,7 +204,7 @@ namespace Groovo.Controllers
                 existing.Genre = request.Genre;
                 existing.Tags = string.Join(",", request.Tags);
                 existing.AudioUrl = request.AudioUrl;
-                existing.Length = request.Length;
+                existing.Duration = new Models.Duration(request.Length);
 
                 await _context.SaveChangesAsync();
 
@@ -321,14 +286,7 @@ namespace Groovo.Controllers
                     .ToListAsync();
 
                 var songSummaries = songs.Select(s => new SongSummaryResponse(
-                    s.Id,
-                    s.Name,
-                    s.Genre,
-                    s.ReleaseDate,
-                    s.Picture,
-                    s.Length,
-                    s.Plays,
-                    s.Likes,
+                    s,
                     s.SongAuthors.Where(sa => sa.User.Role == UserRole.Author)
                         .Select(sa => sa.User.Name)
                         .ToList()
