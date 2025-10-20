@@ -38,7 +38,16 @@ public class Song
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     
-    public int Length { get; set; } // Duration in seconds
+    // Store duration in seconds for database
+    public int Length { get; set; }
+    
+    // Duration as a struct
+    public Duration Duration 
+    { 
+        get => new Duration(Length); 
+        set => Length = value.TotalSeconds; 
+    }
+    
     public int Plays { get; set; }
     public int Likes { get; set; }
 
