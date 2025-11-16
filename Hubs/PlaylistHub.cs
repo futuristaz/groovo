@@ -4,255 +4,366 @@ using Groovo.Data.Contexts;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
 using Groovo.Models;
+using System.Security.Claims;
+using Microsoft.Extensions.Logging;
 
 namespace Groovo.Hubs;
 
 public class PlaylistHub : Hub
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly ILogger<PlaylistHub> _logger;
+    private static readonly SemaphoreSlim _playlistLock = new SemaphoreSlim(1, 1);
 
-    public PlaylistHub(ApplicationDbContext dbContext)
+    public PlaylistHub(ApplicationDbContext dbContext, ILogger<PlaylistHub> logger)
     {
         _dbContext = dbContext;
+        _logger = logger;
     }
 
-    // ----------------------
-    // JOIN/LEAVE PLAYLIST GROUP
-    // ----------------------
+    private Guid GetUserId()
+    {
+        var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        {
+            throw new HubException("Unauthorized: Invalid user token");
+        }
+        return userId;
+    }
+
+    private async Task<bool> IsPlaylistOwner(Guid playlistId, Guid userId)
+    {
+        return await _dbContext.PlaylistOwners
+            .AnyAsync(po => po.PlaylistId == playlistId && po.UserId == userId);
+    }
+
+    private async Task<bool> CanAccessPlaylist(Guid playlistId, Guid userId)
+    {
+        var playlist = await _dbContext.Playlists
+            .FirstOrDefaultAsync(p => p.Id == playlistId);
+
+        if (playlist == null) return false;
+        if (playlist.IsPublic) return true;
+
+        return await IsPlaylistOwner(playlistId, userId);
+    }
+
     public async Task JoinPlaylist(Guid playlistId)
     {
-        await Groups.AddToGroupAsync(Context.ConnectionId, $"playlist_{playlistId}");
-        
-        // Notify others in the group
-        await Clients.OthersInGroup($"playlist_{playlistId}")
-            .SendAsync("UserJoinedPlaylist", Context.ConnectionId);
+        try
+        {
+            var userId = GetUserId();
+
+            if (!await CanAccessPlaylist(playlistId, userId))
+            {
+                throw new HubException("Unauthorized: Cannot access this playlist");
+            }
+
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"playlist_{playlistId}");
+            
+            await Clients.OthersInGroup($"playlist_{playlistId}")
+                .SendAsync("UserJoinedPlaylist", Context.ConnectionId);
+        }
+        catch (HubException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error joining playlist {PlaylistId}", playlistId);
+            throw new HubException("Failed to join playlist");
+        }
     }
 
     public async Task LeavePlaylist(Guid playlistId)
     {
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"playlist_{playlistId}");
-        
-        // Notify others in the group
-        await Clients.OthersInGroup($"playlist_{playlistId}")
-            .SendAsync("UserLeftPlaylist", Context.ConnectionId);
+        try
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"playlist_{playlistId}");
+            
+            await Clients.OthersInGroup($"playlist_{playlistId}")
+                .SendAsync("UserLeftPlaylist", Context.ConnectionId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error leaving playlist {PlaylistId}", playlistId);
+            throw new HubException("Failed to leave playlist");
+        }
     }
 
-    // ----------------------
-    // CREATE PLAYLIST
-    // ----------------------
     public async Task CreatePlaylist(CreatePlaylistRequest request)
     {
-        var playlist = new Playlist
+        try
         {
-            Id = Guid.NewGuid(),
-            Name = request.Name,
-            Description = request.Description ?? string.Empty,
-            Picture = request.Picture ?? string.Empty,
-            IsPublic = request.IsPublic,
-            IsAlbum = request.IsAlbum,
-            IsActive = true,
-            TotalDuration = 0  // Initialize with Duration struct
-        };
+            var userId = GetUserId();
 
-        if (request.OwnerIds != null)
-        {
-            foreach (var userId in request.OwnerIds)
+            var playlist = new Playlist
             {
+                Id = Guid.NewGuid(),
+                Name = request.Name,
+                Description = request.Description ?? string.Empty,
+                Picture = request.Picture ?? string.Empty,
+                IsPublic = request.IsPublic,
+                IsAlbum = request.IsAlbum,
+                IsActive = true
+            };
+
+            var ownerIds = request.OwnerIds ?? new List<Guid> { userId };
+            
+            if (!ownerIds.Contains(userId))
+            {
+                ownerIds.Add(userId);
+            }
+
+            foreach (var ownerId in ownerIds)
+            {
+                var userExists = await _dbContext.Users.AnyAsync(u => u.Id == ownerId);
+                if (!userExists)
+                {
+                    throw new HubException($"User {ownerId} not found");
+                }
+
                 playlist.PlaylistOwners.Add(new PlaylistOwner
                 {
                     PlaylistId = playlist.Id,
-                    UserId = userId
+                    UserId = ownerId
                 });
             }
+
+            _dbContext.Playlists.Add(playlist);
+            await _dbContext.SaveChangesAsync();
+
+            await _dbContext.Entry(playlist)
+                .Collection(p => p.PlaylistOwners)
+                .Query()
+                .Include(po => po.User)
+                .LoadAsync();
+
+            var owners = playlist.PlaylistOwners
+                .Select(po => new UserSummaryResponse(
+                    po.User.Id,
+                    po.User.Name,
+                    po.User.Bio ?? string.Empty,
+                    po.User.Role
+                ))
+                .ToList();
+
+            var response = new PlaylistResponse(
+                playlist.Id,
+                playlist.Name,
+                playlist.Description,
+                playlist.Picture,
+                playlist.IsPublic,
+                playlist.IsAlbum,
+                playlist.IsActive,
+                playlist.CreatedAt,
+                playlist.UpdatedAt,
+                playlist.TotalTime,
+                playlist.PlaylistSongs.Count,
+                new List<SongSummaryResponse>(),
+                owners
+            );
+
+            if (playlist.IsPublic)
+            {
+                await Clients.All.SendAsync("PlaylistCreated", response);
+            }
+            else
+            {
+                foreach (var ownerId in ownerIds)
+                {
+                    await Clients.User(ownerId.ToString()).SendAsync("PlaylistCreated", response);
+                }
+            }
         }
-
-        _dbContext.Playlists.Add(playlist);
-        await _dbContext.SaveChangesAsync();
-
-        // Load navigation properties after save
-        await _dbContext.Entry(playlist)
-            .Collection(p => p.PlaylistOwners)
-            .Query()
-            .Include(po => po.User)
-            .LoadAsync();
-
-        var owners = playlist.PlaylistOwners
-            .Select(po => new UserSummaryResponse(
-                po.User.Id,
-                po.User.Name,
-                po.User.ImageUrl ?? string.Empty,
-                po.User.Role
-            ))
-            .ToList();
-
-        var response = new PlaylistResponse(
-            playlist.Id,
-            playlist.Name,
-            playlist.Description,
-            playlist.Picture,
-            playlist.IsPublic,
-            playlist.IsAlbum,
-            playlist.IsActive,
-            playlist.CreatedAt,
-            playlist.UpdatedAt,
-            playlist.TotalTime,
-            playlist.PlaylistSongs.Count,
-            new List<SongSummaryResponse>(), // empty initially
-            owners
-        );
-
-        // Broadcast to all users (new playlist creation is global)
-        await Clients.All.SendAsync("PlaylistCreated", response);
+        catch (HubException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating playlist");
+            throw new HubException("Failed to create playlist");
+        }
     }
 
-    // ----------------------
-    // ADD SONG TO PLAYLIST
-    // ----------------------
     public async Task AddSongToPlaylist(AddSongRequest request)
     {
-        // Include all necessary navigation properties
-        var playlist = await _dbContext.Playlists
-            .Include(p => p.PlaylistSongs)
-            .FirstOrDefaultAsync(p => p.Id == request.PlaylistId);
-
-        if (playlist == null)
-            throw new HubException("Playlist not found");
-
-        //  Include all necessary navigation properties for song
-        var song = await _dbContext.Songs
-            .Include(s => s.SongAuthors)
-                .ThenInclude(sa => sa.User)
-            .FirstOrDefaultAsync(s => s.Id == request.SongId);
-
-        if (song == null)
-            throw new HubException("Song not found");
-
-        if (playlist.PlaylistSongs.Any(ps => ps.SongId == request.SongId))
-            throw new HubException("Song already in playlist");
-
-        var playlistSong = new PlaylistSong
+        await _playlistLock.WaitAsync();
+        try
         {
-            PlaylistId = playlist.Id,
-            SongId = song.Id,
-            Order = playlist.PlaylistSongs.Count
-        };
+            var userId = GetUserId();
 
-        _dbContext.PlaylistSongs.Add(playlistSong);
-        playlist.TotalDuration += song.Duration;
+            if (!await IsPlaylistOwner(request.PlaylistId, userId))
+            {
+                throw new HubException("Unauthorized: Only playlist owners can add songs");
+            }
 
-        await _dbContext.SaveChangesAsync();
+            var playlist = await _dbContext.Playlists
+                .Include(p => p.PlaylistSongs)
+                .FirstOrDefaultAsync(p => p.Id == request.PlaylistId);
 
-        var authors = song.SongAuthors
-            .Select(sa => new AuthorResponse(
-                sa.User.Id,
-                sa.User.Name,
-                sa.User.Bio ?? string.Empty,
-                sa.User.ImageUrl ?? string.Empty
-            ))
-            .ToList();
+            if (playlist == null)
+                throw new HubException("Playlist not found");
 
-        // Handle null tags and empty entries
-        var tags = string.IsNullOrEmpty(song.Tags) 
-            ? new List<string>() 
-            : song.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(t => t.Trim())
+            var song = await _dbContext.Songs
+                .Include(s => s.SongAuthors)
+                    .ThenInclude(sa => sa.User)
+                .FirstOrDefaultAsync(s => s.Id == request.SongId);
+
+            if (song == null)
+                throw new HubException("Song not found");
+
+            if (playlist.PlaylistSongs.Any(ps => ps.SongId == request.SongId))
+                throw new HubException("Song already in playlist");
+
+            var playlistSong = new PlaylistSong
+            {
+                PlaylistId = playlist.Id,
+                SongId = song.Id,
+                Order = playlist.PlaylistSongs.Count
+            };
+
+            _dbContext.PlaylistSongs.Add(playlistSong);
+            playlist.TotalTime += song.Length;
+
+            await _dbContext.SaveChangesAsync();
+
+            var authors = song.SongAuthors
+                .Select(sa => new AuthorResponse(
+                    sa.User.Id,
+                    sa.User.Name,
+                    sa.User.Bio ?? string.Empty,
+                    sa.User.ImageUrl ?? string.Empty
+                ))
                 .ToList();
 
-        var response = new SongResponse(
-            song,
-            authors
-        );
+            var response = new SongResponse(song, authors);
 
-        // Broadcast only to users in this playlist group
-        await Clients.Group($"playlist_{request.PlaylistId}")
-            .SendAsync("SongAdded", request.PlaylistId, response);
+            await Clients.Group($"playlist_{request.PlaylistId}")
+                .SendAsync("SongAdded", request.PlaylistId, response);
+        }
+        catch (HubException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding song to playlist {PlaylistId}", request.PlaylistId);
+            throw new HubException("Failed to add song to playlist");
+        }
+        finally
+        {
+            _playlistLock.Release();
+        }
     }
 
-    // ----------------------
-    // REMOVE SONG FROM PLAYLIST
-    // ----------------------
     public async Task RemoveSongFromPlaylist(RemoveSongRequest request)
     {
-        //  Include all necessary navigation properties
-        var playlist = await _dbContext.Playlists
-            .Include(p => p.PlaylistSongs)
-            .FirstOrDefaultAsync(p => p.Id == request.PlaylistId);
-
-        if (playlist == null)
-            throw new HubException("Playlist not found");
-
-        var playlistSong = playlist.PlaylistSongs
-            .FirstOrDefault(ps => ps.SongId == request.SongId);
-            
-        if (playlistSong == null)
-            throw new HubException("Song not found in playlist");
-
-        // Load the song with all its navigation properties
-        var song = await _dbContext.Songs
-            .Include(s => s.SongAuthors)
-                .ThenInclude(sa => sa.User)
-            .FirstOrDefaultAsync(s => s.Id == request.SongId);
-
-        if (song == null)
-            throw new HubException("Song not found");
-
-        var removedOrder = playlistSong.Order;
-
-        _dbContext.PlaylistSongs.Remove(playlistSong);
-        playlist.TotalDuration -= song.Duration;
-
-        // Reorder remaining songs
-        var songsToReorder = playlist.PlaylistSongs
-            .Where(ps => ps.Order > removedOrder)
-            .ToList();
-
-        foreach (var ps in songsToReorder)
+        await _playlistLock.WaitAsync();
+        try
         {
-            ps.Order--;
-        }
+            var userId = GetUserId();
 
-        await _dbContext.SaveChangesAsync();
+            if (!await IsPlaylistOwner(request.PlaylistId, userId))
+            {
+                throw new HubException("Unauthorized: Only playlist owners can remove songs");
+            }
 
-        var authors = song.SongAuthors
-            .Select(sa => new AuthorResponse(
-                sa.User.Id,
-                sa.User.Name,
-                sa.User.Bio ?? string.Empty,
-                sa.User.ImageUrl ?? string.Empty
-            ))
-            .ToList();
+            var playlist = await _dbContext.Playlists
+                .Include(p => p.PlaylistSongs)
+                .FirstOrDefaultAsync(p => p.Id == request.PlaylistId);
 
-        //  Handle null tags and empty entries
-        var tags = string.IsNullOrEmpty(song.Tags) 
-            ? new List<string>() 
-            : song.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(t => t.Trim())
+            if (playlist == null)
+                throw new HubException("Playlist not found");
+
+            var playlistSong = playlist.PlaylistSongs
+                .FirstOrDefault(ps => ps.SongId == request.SongId);
+                
+            if (playlistSong == null)
+                throw new HubException("Song not found in playlist");
+
+            var song = await _dbContext.Songs
+                .Include(s => s.SongAuthors)
+                    .ThenInclude(sa => sa.User)
+                .FirstOrDefaultAsync(s => s.Id == request.SongId);
+
+            if (song == null)
+                throw new HubException("Song not found");
+
+            var removedOrder = playlistSong.Order;
+
+            _dbContext.PlaylistSongs.Remove(playlistSong);
+            playlist.TotalTime -= song.Length;
+            if (playlist.TotalTime < 0) playlist.TotalTime = 0;
+
+            var songsToReorder = playlist.PlaylistSongs
+                .Where(ps => ps.Order > removedOrder)
                 .ToList();
 
-        var response = new SongResponse(
-            song,
-            authors
-        );
+            foreach (var ps in songsToReorder)
+            {
+                ps.Order--;
+            }
 
-        // Broadcast only to users in this playlist group
-        await Clients.Group($"playlist_{request.PlaylistId}")
-            .SendAsync("SongRemoved", request.PlaylistId, response);
+            await _dbContext.SaveChangesAsync();
+
+            var authors = song.SongAuthors
+                .Select(sa => new AuthorResponse(
+                    sa.User.Id,
+                    sa.User.Name,
+                    sa.User.Bio ?? string.Empty,
+                    sa.User.ImageUrl ?? string.Empty
+                ))
+                .ToList();
+
+            var response = new SongResponse(song, authors);
+
+            await Clients.Group($"playlist_{request.PlaylistId}")
+                .SendAsync("SongRemoved", request.PlaylistId, response);
+        }
+        catch (HubException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing song from playlist {PlaylistId}", request.PlaylistId);
+            throw new HubException("Failed to remove song from playlist");
+        }
+        finally
+        {
+            _playlistLock.Release();
+        }
     }
 
-    // ----------------------
-    // USER CONNECTION EVENTS
-    // ----------------------
     public override async Task OnConnectedAsync()
     {
-        // Broadcast to all users
-        await Clients.All.SendAsync("UserJoined", Context.ConnectionId);
-        await base.OnConnectedAsync();
+        try
+        {
+            await Clients.All.SendAsync("UserJoined", Context.ConnectionId);
+            await base.OnConnectedAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in OnConnectedAsync");
+        }
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        // Broadcast to all users
-        await Clients.All.SendAsync("UserLeft", Context.ConnectionId);
-        await base.OnDisconnectedAsync(exception);
+        try
+        {
+            if (exception != null)
+            {
+                _logger.LogError(exception, "User disconnected with error");
+            }
+            await Clients.All.SendAsync("UserLeft", Context.ConnectionId);
+            await base.OnDisconnectedAsync(exception);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in OnDisconnectedAsync");
+        }
     }
 }
