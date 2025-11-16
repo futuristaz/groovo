@@ -79,10 +79,8 @@ public class PlaylistHub : Hub
     {
         try
         {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"playlist_{playlistId}");
-            
-            await Clients.OthersInGroup($"playlist_{playlistId}")
-                .SendAsync("UserLeftPlaylist", Context.ConnectionId);
+          await Clients.Group($"playlist_{playlistId}")
+         .SendAsync("UserLeftPlaylist", Context.ConnectionId);
         }
         catch (Exception ex)
         {
