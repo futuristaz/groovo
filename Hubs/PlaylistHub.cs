@@ -6,6 +6,7 @@ using Groovo.DTOs.Responses;
 using Groovo.Models;
 using System.Security.Claims;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 
 namespace Groovo.Hubs;
 
@@ -13,12 +14,17 @@ public class PlaylistHub : Hub
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<PlaylistHub> _logger;
-    private static readonly SemaphoreSlim _playlistLock = new SemaphoreSlim(1, 1);
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> _playlistLocks = new();
 
     public PlaylistHub(ApplicationDbContext dbContext, ILogger<PlaylistHub> logger)
     {
         _dbContext = dbContext;
         _logger = logger;
+    }
+
+    private SemaphoreSlim GetPlaylistLock(Guid playlistId)
+    {
+        return _playlistLocks.GetOrAdd(playlistId, _ => new SemaphoreSlim(1, 1));
     }
 
     private Guid GetUserId()
@@ -29,6 +35,17 @@ public class PlaylistHub : Hub
             throw new HubException("Unauthorized: Invalid user token");
         }
         return userId;
+    }
+
+    private async Task<UserRole> GetUserRole()
+    {
+        var userId = GetUserId();
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null)
+        {
+            throw new HubException("User not found");
+        }
+        return user.Role;
     }
 
     private async Task<bool> IsPlaylistOwner(Guid playlistId, Guid userId)
@@ -79,8 +96,10 @@ public class PlaylistHub : Hub
     {
         try
         {
-          await Clients.Group($"playlist_{playlistId}")
-         .SendAsync("UserLeftPlaylist", Context.ConnectionId);
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"playlist_{playlistId}");
+            
+            await Clients.OthersInGroup($"playlist_{playlistId}")
+                .SendAsync("UserLeftPlaylist", Context.ConnectionId);
         }
         catch (Exception ex)
         {
@@ -187,7 +206,8 @@ public class PlaylistHub : Hub
 
     public async Task AddSongToPlaylist(AddSongRequest request)
     {
-        await _playlistLock.WaitAsync();
+        var playlistLock = GetPlaylistLock(request.PlaylistId);
+        await playlistLock.WaitAsync();
         try
         {
             var userId = GetUserId();
@@ -252,13 +272,14 @@ public class PlaylistHub : Hub
         }
         finally
         {
-            _playlistLock.Release();
+            playlistLock.Release();
         }
     }
 
     public async Task RemoveSongFromPlaylist(RemoveSongRequest request)
     {
-        await _playlistLock.WaitAsync();
+        var playlistLock = GetPlaylistLock(request.PlaylistId);
+        await playlistLock.WaitAsync();
         try
         {
             var userId = GetUserId();
@@ -331,7 +352,7 @@ public class PlaylistHub : Hub
         }
         finally
         {
-            _playlistLock.Release();
+            playlistLock.Release();
         }
     }
 
