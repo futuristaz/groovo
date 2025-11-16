@@ -187,10 +187,7 @@ public class PlaylistHub : Hub
             }
             else
             {
-                foreach (var ownerId in ownerIds)
-                {
-                    await Clients.User(ownerId.ToString()).SendAsync("PlaylistCreated", response);
-                }
+                await Clients.Group($"playlist_{playlist.Id}").SendAsync("PlaylistCreated", response);
             }
         }
         catch (HubException)
