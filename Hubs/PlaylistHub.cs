@@ -15,6 +15,7 @@ public class PlaylistHub : Hub
     private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<PlaylistHub> _logger;
     private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> _playlistLocks = new();
+    private static readonly ConcurrentDictionary<Guid, PlaybackState> _playbackStates = new();
 
     public PlaylistHub(ApplicationDbContext dbContext, ILogger<PlaylistHub> logger)
     {
@@ -22,9 +23,28 @@ public class PlaylistHub : Hub
         _logger = logger;
     }
 
+    private class PlaybackState
+    {
+        public bool IsPlaying { get; set; }
+        public Guid? CurrentSongId { get; set; }
+        public int CurrentPosition { get; set; }
+        public DateTime LastUpdated { get; set; }
+    }
+
     private SemaphoreSlim GetPlaylistLock(Guid playlistId)
     {
         return _playlistLocks.GetOrAdd(playlistId, _ => new SemaphoreSlim(1, 1));
+    }
+
+    private PlaybackState GetOrCreatePlaybackState(Guid playlistId)
+    {
+        return _playbackStates.GetOrAdd(playlistId, _ => new PlaybackState
+        {
+            IsPlaying = false,
+            CurrentSongId = null,
+            CurrentPosition = 0,
+            LastUpdated = DateTime.UtcNow
+        });
     }
 
     private Guid GetUserId()
@@ -222,9 +242,33 @@ public class PlaylistHub : Hub
                 throw new HubException("Playlist not found");
 
             var song = await _dbContext.Songs
-                .Include(s => s.SongAuthors)
-                    .ThenInclude(sa => sa.User)
-                .FirstOrDefaultAsync(s => s.Id == request.SongId);
+                .Where(s => s.Id == request.SongId)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.Length,
+                    s.Name,
+                    s.AudioUrl,
+                    s.Picture,
+                    s.Album,
+                    s.Description,
+                    s.ReleaseDate,
+                    s.Genre,
+                    s.Tags,
+                    s.IsActive,
+                    s.CreatedAt,
+                    s.UpdatedAt,
+                    s.Plays,
+                    s.Likes,
+                    Authors = s.SongAuthors.Select(sa => new
+                    {
+                        sa.User.Id,
+                        sa.User.Name,
+                        sa.User.Bio,
+                        sa.User.ImageUrl
+                    }).ToList()
+                })
+                .FirstOrDefaultAsync();
 
             if (song == null)
                 throw new HubException("Song not found");
@@ -244,19 +288,43 @@ public class PlaylistHub : Hub
 
             await _dbContext.SaveChangesAsync();
 
-            var authors = song.SongAuthors
-                .Select(sa => new AuthorResponse(
-                    sa.User.Id,
-                    sa.User.Name,
-                    sa.User.Bio ?? string.Empty,
-                    sa.User.ImageUrl ?? string.Empty
+            var authors = song.Authors
+                .Select(a => new AuthorResponse(
+                    a.Id,
+                    a.Name,
+                    a.Bio ?? string.Empty,
+                    a.ImageUrl ?? string.Empty
                 ))
                 .ToList();
 
-            var response = new SongResponse(song, authors);
+            var tags = string.IsNullOrEmpty(song.Tags) 
+                ? new List<string>() 
+                : song.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(t => t.Trim())
+                    .ToList();
+
+            var songResponse = new
+            {
+                song.Id,
+                song.Name,
+                song.AudioUrl,
+                song.Picture,
+                song.Album,
+                song.Description,
+                song.ReleaseDate,
+                song.Genre,
+                song.Length,
+                song.IsActive,
+                song.Plays,
+                song.Likes,
+                Tags = tags,
+                Authors = authors,
+                song.CreatedAt,
+                song.UpdatedAt
+            };
 
             await Clients.Group($"playlist_{request.PlaylistId}")
-                .SendAsync("SongAdded", request.PlaylistId, response);
+                .SendAsync("SongAdded", request.PlaylistId, songResponse);
         }
         catch (HubException)
         {
@@ -300,9 +368,33 @@ public class PlaylistHub : Hub
                 throw new HubException("Song not found in playlist");
 
             var song = await _dbContext.Songs
-                .Include(s => s.SongAuthors)
-                    .ThenInclude(sa => sa.User)
-                .FirstOrDefaultAsync(s => s.Id == request.SongId);
+                .Where(s => s.Id == request.SongId)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.Length,
+                    s.Name,
+                    s.AudioUrl,
+                    s.Picture,
+                    s.Album,
+                    s.Description,
+                    s.ReleaseDate,
+                    s.Genre,
+                    s.Tags,
+                    s.IsActive,
+                    s.CreatedAt,
+                    s.UpdatedAt,
+                    s.Plays,
+                    s.Likes,
+                    Authors = s.SongAuthors.Select(sa => new
+                    {
+                        sa.User.Id,
+                        sa.User.Name,
+                        sa.User.Bio,
+                        sa.User.ImageUrl
+                    }).ToList()
+                })
+                .FirstOrDefaultAsync();
 
             if (song == null)
                 throw new HubException("Song not found");
@@ -324,19 +416,43 @@ public class PlaylistHub : Hub
 
             await _dbContext.SaveChangesAsync();
 
-            var authors = song.SongAuthors
-                .Select(sa => new AuthorResponse(
-                    sa.User.Id,
-                    sa.User.Name,
-                    sa.User.Bio ?? string.Empty,
-                    sa.User.ImageUrl ?? string.Empty
+            var authors = song.Authors
+                .Select(a => new AuthorResponse(
+                    a.Id,
+                    a.Name,
+                    a.Bio ?? string.Empty,
+                    a.ImageUrl ?? string.Empty
                 ))
                 .ToList();
 
-            var response = new SongResponse(song, authors);
+            var tags = string.IsNullOrEmpty(song.Tags) 
+                ? new List<string>() 
+                : song.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(t => t.Trim())
+                    .ToList();
+
+            var songResponse = new
+            {
+                song.Id,
+                song.Name,
+                song.AudioUrl,
+                song.Picture,
+                song.Album,
+                song.Description,
+                song.ReleaseDate,
+                song.Genre,
+                song.Length,
+                song.IsActive,
+                song.Plays,
+                song.Likes,
+                Tags = tags,
+                Authors = authors,
+                song.CreatedAt,
+                song.UpdatedAt
+            };
 
             await Clients.Group($"playlist_{request.PlaylistId}")
-                .SendAsync("SongRemoved", request.PlaylistId, response);
+                .SendAsync("SongRemoved", request.PlaylistId, songResponse);
         }
         catch (HubException)
         {
@@ -380,6 +496,237 @@ public class PlaylistHub : Hub
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in OnDisconnectedAsync");
+        }
+    }
+
+    public async Task Play(Guid playlistId, Guid? songId = null)
+    {
+        try
+        {
+            var userId = GetUserId();
+
+            if (!await CanAccessPlaylist(playlistId, userId))
+            {
+                throw new HubException("Unauthorized: Cannot access this playlist");
+            }
+
+            var state = GetOrCreatePlaybackState(playlistId);
+            
+            if (songId.HasValue)
+            {
+                var song = await _dbContext.PlaylistSongs
+                    .Where(ps => ps.PlaylistId == playlistId && ps.SongId == songId.Value)
+                    .Select(ps => new { ps.SongId, ps.Order })
+                    .FirstOrDefaultAsync();
+
+                if (song == null)
+                {
+                    throw new HubException("Song not found in playlist");
+                }
+
+                state.CurrentSongId = song.SongId;
+                state.CurrentPosition = 0;
+            }
+            else if (state.CurrentSongId == null)
+            {
+                var firstSong = await _dbContext.PlaylistSongs
+                    .Where(ps => ps.PlaylistId == playlistId)
+                    .OrderBy(ps => ps.Order)
+                    .Select(ps => ps.SongId)
+                    .FirstOrDefaultAsync();
+
+                if (firstSong == Guid.Empty)
+                {
+                    throw new HubException("Playlist is empty");
+                }
+
+                state.CurrentSongId = firstSong;
+                state.CurrentPosition = 0;
+            }
+
+            state.IsPlaying = true;
+            state.LastUpdated = DateTime.UtcNow;
+
+            await Clients.Group($"playlist_{playlistId}")
+                .SendAsync("PlaybackStarted", playlistId, state.CurrentSongId, state.CurrentPosition);
+        }
+        catch (HubException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error playing playlist {PlaylistId}", playlistId);
+            throw new HubException("Failed to play playlist");
+        }
+    }
+
+    public async Task Pause(Guid playlistId, int currentPosition)
+    {
+        try
+        {
+            var userId = GetUserId();
+
+            if (!await CanAccessPlaylist(playlistId, userId))
+            {
+                throw new HubException("Unauthorized: Cannot access this playlist");
+            }
+
+            var state = GetOrCreatePlaybackState(playlistId);
+            state.IsPlaying = false;
+            state.CurrentPosition = currentPosition;
+            state.LastUpdated = DateTime.UtcNow;
+
+            await Clients.Group($"playlist_{playlistId}")
+                .SendAsync("PlaybackPaused", playlistId, currentPosition);
+        }
+        catch (HubException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error pausing playlist {PlaylistId}", playlistId);
+            throw new HubException("Failed to pause playlist");
+        }
+    }
+
+    public async Task Skip(Guid playlistId, bool forward = true)
+    {
+        try
+        {
+            var userId = GetUserId();
+
+            if (!await CanAccessPlaylist(playlistId, userId))
+            {
+                throw new HubException("Unauthorized: Cannot access this playlist");
+            }
+
+            var state = GetOrCreatePlaybackState(playlistId);
+
+            if (state.CurrentSongId == null)
+            {
+                throw new HubException("No song is currently playing");
+            }
+
+            var currentSong = await _dbContext.PlaylistSongs
+                .Where(ps => ps.PlaylistId == playlistId && ps.SongId == state.CurrentSongId)
+                .Select(ps => ps.Order)
+                .FirstOrDefaultAsync();
+
+            var targetOrder = forward ? currentSong + 1 : currentSong - 1;
+
+            var nextSong = await _dbContext.PlaylistSongs
+                .Where(ps => ps.PlaylistId == playlistId && ps.Order == targetOrder)
+                .Select(ps => new { ps.SongId, ps.Order })
+                .FirstOrDefaultAsync();
+
+            if (nextSong == null)
+            {
+                if (forward)
+                {
+                    state.IsPlaying = false;
+                    state.CurrentSongId = null;
+                    state.CurrentPosition = 0;
+                    
+                    await Clients.Group($"playlist_{playlistId}")
+                        .SendAsync("PlaylistEnded", playlistId);
+                    return;
+                }
+                else
+                {
+                    throw new HubException("Already at first song");
+                }
+            }
+
+            state.CurrentSongId = nextSong.SongId;
+            state.CurrentPosition = 0;
+            state.LastUpdated = DateTime.UtcNow;
+
+            await Clients.Group($"playlist_{playlistId}")
+                .SendAsync("PlaybackSkipped", playlistId, nextSong.SongId, forward);
+        }
+        catch (HubException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error skipping in playlist {PlaylistId}", playlistId);
+            throw new HubException("Failed to skip song");
+        }
+    }
+
+    public async Task Seek(Guid playlistId, int position)
+    {
+        try
+        {
+            var userId = GetUserId();
+
+            if (!await CanAccessPlaylist(playlistId, userId))
+            {
+                throw new HubException("Unauthorized: Cannot access this playlist");
+            }
+
+            if (position < 0)
+            {
+                throw new HubException("Position cannot be negative");
+            }
+
+            var state = GetOrCreatePlaybackState(playlistId);
+            
+            if (state.CurrentSongId == null)
+            {
+                throw new HubException("No song is currently playing");
+            }
+
+            state.CurrentPosition = position;
+            state.LastUpdated = DateTime.UtcNow;
+
+            await Clients.Group($"playlist_{playlistId}")
+                .SendAsync("PlaybackSeeked", playlistId, position);
+        }
+        catch (HubException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error seeking in playlist {PlaylistId}", playlistId);
+            throw new HubException("Failed to seek position");
+        }
+    }
+
+    public async Task GetPlaybackState(Guid playlistId)
+    {
+        try
+        {
+            var userId = GetUserId();
+
+            if (!await CanAccessPlaylist(playlistId, userId))
+            {
+                throw new HubException("Unauthorized: Cannot access this playlist");
+            }
+
+            var state = GetOrCreatePlaybackState(playlistId);
+
+            await Clients.Caller.SendAsync("PlaybackStateReceived", new
+            {
+                playlistId,
+                isPlaying = state.IsPlaying,
+                currentSongId = state.CurrentSongId,
+                currentPosition = state.CurrentPosition,
+                lastUpdated = state.LastUpdated
+            });
+        }
+        catch (HubException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting playback state for playlist {PlaylistId}", playlistId);
+            throw new HubException("Failed to get playback state");
         }
     }
 }
