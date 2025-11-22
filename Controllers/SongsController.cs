@@ -4,6 +4,7 @@ using Groovo.Models;
 using Groovo.Data.Contexts;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Groovo.Controllers
 {
@@ -21,39 +22,10 @@ namespace Groovo.Controllers
             _logger = logger;
         }
 
-        /// <summary>GET: /api/v1/songs</summary>
-        /// <returns>List of songs</returns>
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<SongSummaryResponse>>> GetAll()
-        {
-            try
-            {
-                var songs = await _context.Songs
-                    .Include(s => s.SongAuthors)
-                    .ThenInclude(sa => sa.User)
-                    .Where(s => s.IsActive)
-                    .OrderBy(s => s.ReleaseDate)
-                    .ToListAsync();
-
-                var songSummaryResponses = songs.Select(s => new SongSummaryResponse(
-                    s,
-                    s.SongAuthors.Where(sa => sa.User.Role == UserRole.Author)
-                        .Select(sa => sa.User.Name)
-                        .ToList()
-                )).ToList();
-
-                return Ok(songSummaryResponses);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error retrieving songs");
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
         /// <summary>GET: /api/v1/songs/{id}</summary>
         /// <returns>Specific song with authors or 404 if not found</returns>
         [HttpGet("{id:guid}")]
+        [Authorize(Policy = "UserPolicy")]
         public async Task<ActionResult<SongResponse>> GetById(Guid id)
         {
             try
@@ -219,52 +191,10 @@ namespace Groovo.Controllers
             }
         }
 
-        /// <summary>DELETE: /api/v1/songs/{id}</summary>
-        /// <returns>204 if successful, 404 if not found</returns>
-        [HttpDelete("{id:guid}")]
-        public async Task<ActionResult> Delete(Guid id)
-        {
-            try
-            {
-                var song = await _context.Songs
-                    .Include(s => s.SongAuthors)
-                    .Include(s => s.PlaylistSongs)
-                    .FirstOrDefaultAsync(s => s.Id == id);
-                
-                if (song == null)
-                    return NotFound($"Song with ID {id} not found.");
-
-                // Remove all related SongAuthor entries
-                if (song.SongAuthors.Any())
-                {
-                    _context.SongAuthors.RemoveRange(song.SongAuthors);
-                }
-
-                // Remove all related PlaylistSong entries
-                if (song.PlaylistSongs.Any())
-                {
-                    _context.PlaylistSongs.RemoveRange(song.PlaylistSongs);
-                }
-
-                // Remove the song itself
-                _context.Songs.Remove(song);
-                
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation("Deleted song {SongId}: {SongName} and all related entries", id, song.Name);
-
-                return NoContent();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting song {SongId}", id);
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
         /// <summary>GET: /api/v1/songs/search</summary>
         /// <returns>List of songs matching the search criteria</returns>
         [HttpGet("search")]
+        [Authorize(Policy = "UserPolicy")]
         public async Task<ActionResult<IEnumerable<SongSummaryResponse>>> Search([FromQuery] string query)
         {
             if (string.IsNullOrWhiteSpace(query))
