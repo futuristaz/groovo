@@ -24,6 +24,39 @@ namespace Groovo.Controllers
         }
 
         /// <summary>
+        /// GET: /api/v1/author/{id}
+        /// </summary>
+        /// <returns>Author details or 404 if not found</returns>
+        [HttpGet("{id:guid}")]
+        [Authorize(Policy = "UserPolicy,AuthorPolicy,AdminPolicy")]
+        public async Task<ActionResult<AuthorResponse>> GetAuthorById(Guid id)
+        {
+            try
+            {
+                var user = await _context.Users
+                    .Where(u => u.Id == id && u.Role == UserRole.Author)
+                    .FirstOrDefaultAsync();
+
+                if (user == null)
+                    return NotFound($"Author with ID {id} not found.");
+
+                var authorResponse = new AuthorResponse(
+                    user.Id,
+                    user.Name,
+                    user.Bio,
+                    user.ImageUrl
+                );
+
+                return Ok(authorResponse);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving author {AuthorId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
         /// GET: /api/v1/author/{id}/songs
         /// If id is the current user's ID or it is admin, returns all their authored songs.
         /// Otherwise, returns only active songs.
@@ -117,5 +150,47 @@ namespace Groovo.Controllers
                 return StatusCode(500, "Internal server error");
             }
         }
+
+        /// <summary>
+        /// GET: /api/v1/author/song/{id}
+        /// Only authors, if they owns song, and admins can access this endpoint.
+        /// Oriented for author view
+        /// </summary>
+        /// <returns>Specific song with authors or 404 if not found</returns>
+        [HttpGet("song/{id:guid}")]
+        [Authorize(Policy = "AuthorPolicy,AdminPolicy")]
+        public async Task<ActionResult<SongResponse>> GetById(Guid id)
+        {
+            try
+            {
+                var song = await _context.Songs
+                    .Include(s => s.SongAuthors)
+                    .ThenInclude(sa => sa.User)
+                    .Where(s => s.Id == id && (User.IsInRole("Admin") ||
+                        s.SongAuthors.Any(sa => sa.UserId.ToString() == User.FindFirstValue(ClaimTypes.NameIdentifier))))
+                    .FirstOrDefaultAsync();
+
+                if (song == null)
+                    return NotFound($"Song with ID {id} not found.");
+
+                var songResponse = new SongResponse(
+                    song,
+                    song.SongAuthors.Where(sa => sa.User.Role == UserRole.Author).Select(sa => new AuthorResponse(
+                        sa.User.Id,
+                        sa.User.Name,
+                        sa.User.Bio,
+                        sa.User.ImageUrl
+                    )).ToList()
+                );
+
+                return Ok(songResponse);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving song {SongId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
     }
 }
