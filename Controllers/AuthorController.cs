@@ -192,5 +192,151 @@ namespace Groovo.Controllers
             }
         }
 
+        /// <summary>
+        /// POST: /api/v1/songs
+        /// Song should be created by authors and their own ID must be in AuthorIds.
+        /// </summary>
+        /// <returns>201 with the created song</returns>
+        [HttpPost]
+        [Authorize(Policy = "AuthorPolicy")]
+        public async Task<ActionResult<SongResponse>> Create([FromBody] CreateSongRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            if (request.AuthorIds == null || !request.AuthorIds.Contains(Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??"")))
+            {
+                return Forbid("Authors can only create songs for themselves.");
+            }
+
+            try
+            {
+                List<Guid> validatedAuthorIds = new List<Guid>();
+                if (request.AuthorIds != null && request.AuthorIds.Any())
+                {
+                    var existingAuthorIds = await _context.Users
+                        .Where(u => request.AuthorIds.Contains(u.Id) && u.Role == UserRole.Author)
+                        .Select(u => u.Id)
+                        .ToListAsync();
+
+                    var invalidAuthorIds = request.AuthorIds.Except(existingAuthorIds).ToList();
+                    if (invalidAuthorIds.Any())
+                    {
+                        return BadRequest($"The following author IDs do not exist or are not authors: {string.Join(", ", invalidAuthorIds)}");
+                    }
+
+                    validatedAuthorIds = existingAuthorIds;
+                }
+
+                var newSong = new Song
+                {
+                    Id = Guid.NewGuid(),
+                    Name = request.Name,
+                    Description = request.Description,
+                    ReleaseDate = request.ReleaseDate,
+                    Picture = request.Picture,
+                    Album = request.Album,
+                    Genre = request.Genre,
+                    Tags = string.Join(",", request.Tags),
+                    AudioUrl = request.AudioUrl,
+                    Duration = new Models.Duration(request.Length),
+                    IsActive = true
+                };
+
+                _context.Songs.Add(newSong);
+
+                if (validatedAuthorIds.Any())
+                {
+                    var songAuthors = validatedAuthorIds.Select(authorId => new SongAuthor
+                    {
+                        SongId = newSong.Id,
+                        UserId = authorId
+                    }).ToList();
+
+                    _context.SongAuthors.AddRange(songAuthors);
+                }
+
+                await _context.SaveChangesAsync();
+
+                var createdSong = await _context.Songs
+                    .Include(s => s.SongAuthors)
+                    .ThenInclude(sa => sa.User)
+                    .FirstOrDefaultAsync(s => s.Id == newSong.Id);
+
+                if (createdSong == null)
+                {
+                    _logger.LogError("Failed to retrieve the created song {SongId}", newSong.Id);
+                    return StatusCode(500, "Internal server error");
+                }
+
+                var songResponse = new SongResponse(
+                    createdSong,
+                    createdSong.SongAuthors.Where(sa => sa.User.Role == UserRole.Author).Select(sa => new AuthorResponse(
+                        sa.User.Id,
+                        sa.User.Name,
+                        sa.User.Bio,
+                        sa.User.ImageUrl
+                    )).ToList()
+                );
+
+                _logger.LogInformation("Created new song {SongId}: {SongName}", newSong.Id, newSong.Name);
+
+                return CreatedAtAction(nameof(GetById), new { id = newSong.Id }, songResponse);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating song {SongName}", request.Name);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// DELETE: /api/v1/songs/{id}
+        /// Only authors who own the song and admins can delete it.
+        /// </summary>
+        /// <returns>204 if successful, 404 if not found</returns>
+        [HttpDelete("{id:guid}")]
+        [Authorize(Policy = "AuthorPolicy,AdminPolicy")]
+        public async Task<ActionResult> Delete(Guid id)
+        {
+            try
+            {
+                var song = await _context.Songs
+                    .Where(s => s.Id == id && (User.IsInRole("Admin") ||
+                        s.SongAuthors.Any(sa => sa.UserId.ToString() == User.FindFirstValue(ClaimTypes.NameIdentifier))))
+                    .Include(s => s.SongAuthors)
+                    .Include(s => s.PlaylistSongs)
+                    .FirstOrDefaultAsync();
+                
+                if (song == null)
+                    return NotFound($"Song with ID {id} not found.");
+
+                if (song.SongAuthors.Any())
+                {
+                    _context.SongAuthors.RemoveRange(song.SongAuthors);
+                }
+
+                if (song.PlaylistSongs.Any())
+                {
+                    _context.PlaylistSongs.RemoveRange(song.PlaylistSongs);
+                }
+
+                _context.Songs.Remove(song);
+                
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Deleted song {SongId}: {SongName} and all related entries", id, song.Name);
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting song {SongId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
     }
 }
