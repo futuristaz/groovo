@@ -14,6 +14,7 @@ public class Program
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        var DefaultCorsPolicy = "_AllowAllPolicy";
 
         // Add Entity Framework
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -40,6 +41,15 @@ public class Program
             options.AddPolicy("AdminPolicy", policy => policy.RequireRole("Admin"));
             options.AddPolicy("AuthorPolicy", policy => policy.RequireRole("Author"));
             options.AddPolicy("UserPolicy", policy => policy.RequireRole("User"));
+        });
+
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy(name: DefaultCorsPolicy,
+                policy =>
+                {
+                    policy.AllowAnyOrigin();
+                });
         });
 
         builder.Services.AddControllers(options =>
@@ -93,6 +103,7 @@ public class Program
         {
             app.UseSwagger();
             app.UseSwaggerUI();
+            app.UseCors(DefaultCorsPolicy);
         }
 
         // Use official Authentication and Authorization middleware
