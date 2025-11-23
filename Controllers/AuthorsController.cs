@@ -25,14 +25,14 @@ namespace Groovo.Controllers
         }
 
         /// <summary>
-        /// GET: /api/v1/author/song/{id}
+        /// GET: /api/v1/authors/songs/{id}
         /// Only authors, if they owns song, and admins can access this endpoint.
         /// Oriented for author view
         /// </summary>
         /// <returns>Specific song with authors or 404 if not found</returns>
-        [HttpGet("song/{id:guid}")]
+        [HttpGet("songs/{id:guid}")]
         [Authorize(Roles = "Author,Admin")]
-        public async Task<ActionResult<SongResponse>> GetById(Guid id)
+        public async Task<ActionResult<SongResponse>> GetSongById(Guid id)
         {
             try
             {
