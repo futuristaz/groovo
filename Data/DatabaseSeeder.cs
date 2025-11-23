@@ -156,7 +156,7 @@ public static class DatabaseSeeder
                 Name = "Classic Rock Hits",
                 Description = "A collection of timeless rock classics",
                 IsPublic = true,
-                IsActive = true,
+                IsActive = false,
                 IsAlbum = false,
                 CreatedAt = now,
                 UpdatedAt = now
@@ -167,7 +167,7 @@ public static class DatabaseSeeder
                 Name = "Pop Classics",
                 Description = "Best pop songs of all time",
                 IsPublic = true,
-                IsActive = true,
+                IsActive = false,
                 IsAlbum = false,
                 CreatedAt = now,
                 UpdatedAt = now

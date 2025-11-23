@@ -10,7 +10,7 @@ public class PlaylistConfiguration : IEntityTypeConfiguration<Playlist>
     {
         // Configure default values
         builder.Property(p => p.IsActive)
-            .HasDefaultValue(true);
+            .HasDefaultValue(false);
             
         builder.Property(p => p.IsPublic)
             .HasDefaultValue(false);
