@@ -23,16 +23,20 @@ namespace Groovo.Controllers
             _logger = logger;
         }
 
-        /// <summary>GET: /api/v1/playlists</summary>
+        /// <summary>
+        /// GET: /api/v1/playlists
+        /// Only public playlists or those accessible by admins are returned
+        /// </summary>
         /// <returns>List of playlists</returns>
         [HttpGet]
+        [Authorize(Roles = "User,Admin")]
         public async Task<ActionResult<IEnumerable<PlaylistSummaryResponse>>> GetAll()
         {
             try
             {
                 var playlists = await _context.Playlists
                     .Include(p => p.PlaylistSongs)
-                    .Where(p => p.IsPublic)
+                    .Where(p => p.IsPublic || User.IsInRole("Admin"))
                     .OrderBy(p => p.CreatedAt)
                     .ToListAsync();
 
@@ -56,9 +60,13 @@ namespace Groovo.Controllers
             }
         }
 
-        /// <summary>GET: /api/v1/playlists/{id}</summary>
+        /// <summary>
+        /// GET: /api/v1/playlists/{id}
+        /// Only owners or admins can view non-public playlists
+        /// </summary>
         /// <returns>Specific playlist with songs and owners or 404 if not found</returns>
         [HttpGet("{id:guid}")]
+        [Authorize(Roles = "User,Admin")]
         public async Task<ActionResult<PlaylistResponse>> GetById(Guid id)
         {
             try
@@ -70,7 +78,8 @@ namespace Groovo.Controllers
                     .ThenInclude(sa => sa.User)
                     .Include(p => p.PlaylistOwners)
                     .ThenInclude(po => po.User)
-                    .Where(p => p.Id == id)
+                    .Where(p => p.Id == id && (p.IsPublic || User.IsInRole("Admin") ||
+                        p.PlaylistOwners.Any(po => po.UserId == Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??""))))
                     .FirstOrDefaultAsync();
 
                 if (playlist == null)
@@ -276,7 +285,10 @@ namespace Groovo.Controllers
             }
         }
 
-        /// <summary>DELETE: /api/v1/playlists/{id}</summary>
+        /// <summary>
+        /// DELETE: /api/v1/playlists/{id}
+        /// Only owners or admins can delete the playlist
+        /// </summary>
         /// <returns>204 if successful, 404 if not found</returns>
         [HttpDelete("{id:guid}")]
         [Authorize(Roles = "User,Author,Admin")]
@@ -331,9 +343,13 @@ namespace Groovo.Controllers
         // Playlist-Song management endpoints
         //=============================================
 
-        /// <summary>GET: /api/v1/playlists/{id}/songs</summary>
+        /// <summary>
+        /// GET: /api/v1/playlists/{id}/songs
+        /// Only owners or admins can view songs in non-public playlists
+        /// </summary>
         /// <returns>List of songs in the playlist</returns>
         [HttpGet("{id:guid}/songs")]
+        [Authorize(Roles = "User,Admin")]
         public async Task<ActionResult<IEnumerable<SongSummaryResponse>>> GetSongsInPlaylist(Guid id)
         {
             try
@@ -343,7 +359,8 @@ namespace Groovo.Controllers
                     .ThenInclude(ps => ps.Song)
                     .ThenInclude(s => s.SongAuthors)
                     .ThenInclude(sa => sa.User)
-                    .Where(p => p.Id == id)
+                    .Where(p => p.Id == id && (p.IsPublic || User.IsInRole("Admin") ||
+                        p.PlaylistOwners.Any(po => po.UserId == Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??""))))
                     .FirstOrDefaultAsync();
 
                 if (playlist == null)
