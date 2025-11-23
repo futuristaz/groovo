@@ -4,6 +4,8 @@ using Groovo.Models;
 using Groovo.Data.Contexts;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace Groovo.Controllers
 {
@@ -108,15 +110,35 @@ namespace Groovo.Controllers
             }
         }
 
-        /// <summary>POST: /api/v1/playlists</summary>
+        /// <summary>
+        /// POST: /api/v1/playlists
+        /// If user is author, it can create only albums
+        /// If user is regular user, it can create only non-album playlists
+        /// If user is admin, it can create any playlist
+        /// </summary>
         /// <returns>201 with the created playlist</returns>
         [HttpPost]
+        [Authorize(Roles = "User,Author,Admin")]
         public async Task<ActionResult<PlaylistResponse>> Create([FromBody] CreatePlaylistRequest request)
         {
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
+
+            if (!User.IsInRole("Admin"))
+            {
+                if (User.IsInRole("Author") && !request.IsAlbum)
+                {
+                    return Forbid("Authors can only create albums.");
+                }
+                else if (User.IsInRole("User") && request.IsAlbum)
+                {
+                    return Forbid("Regular users cannot create albums.");
+                }
+            }
+
+            var currentUserId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??"");
 
             try
             {
@@ -211,9 +233,13 @@ namespace Groovo.Controllers
             }
         }
 
-        /// <summary>PUT: /api/v1/playlists/{id}</summary>
+        /// <summary>
+        /// PUT: /api/v1/playlists/{id}
+        /// Only owners or admins can update the playlist
+        /// </summary>
         /// <returns>204 if successful, 404 if not found</returns>
         [HttpPut("{id:guid}")]
+        [Authorize(Roles = "User,Author,Admin")]
         public async Task<ActionResult> Update(Guid id, [FromBody] UpdatePlaylistRequest request)
         {
             if (!ModelState.IsValid)
@@ -223,16 +249,19 @@ namespace Groovo.Controllers
 
             try
             {
-                var existing = await _context.Playlists.FirstOrDefaultAsync(p => p.Id == id);
+                var existing = await _context.Playlists.FirstOrDefaultAsync(p => p.Id == id && (User.IsInRole("Admin") ||
+                    p.PlaylistOwners.Any(po => po.UserId == Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??""))));
                 if (existing == null)
                     return NotFound($"Playlist with ID {id} not found.");
 
-                existing.Name = request.Name;
-                existing.Description = request.Description ?? "";
-                existing.Picture = request.Picture ?? "";
-                existing.IsPublic = request.IsPublic;
-                existing.IsAlbum = request.IsAlbum;
-                // UpdatedAt is handled automatically by the context
+                if (request.Name != null)
+                    existing.Name = request.Name;
+                if (request.Description != null)
+                    existing.Description = request.Description;
+                if (request.Picture != null)
+                    existing.Picture = request.Picture;
+                if (request.IsPublic.HasValue)
+                    existing.IsPublic = request.IsPublic.Value;
 
                 await _context.SaveChangesAsync();
 
@@ -250,6 +279,7 @@ namespace Groovo.Controllers
         /// <summary>DELETE: /api/v1/playlists/{id}</summary>
         /// <returns>204 if successful, 404 if not found</returns>
         [HttpDelete("{id:guid}")]
+        [Authorize(Roles = "User,Author,Admin")]
         public async Task<ActionResult> Delete(Guid id)
         {
             try
@@ -257,10 +287,17 @@ namespace Groovo.Controllers
                 var playlist = await _context.Playlists
                     .Include(p => p.PlaylistSongs)
                     .Include(p => p.PlaylistOwners)
-                    .FirstOrDefaultAsync(p => p.Id == id);
-                
+                    .FirstOrDefaultAsync(p => p.Id == id && (User.IsInRole("Admin") ||
+                        p.PlaylistOwners.Any(po => po.UserId == Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??""))));
+
                 if (playlist == null)
                     return NotFound($"Playlist with ID {id} not found.");
+
+                // If it is album and has songs, prevent deletion
+                if (playlist.IsAlbum && playlist.PlaylistSongs.Any())
+                {
+                    return BadRequest("Cannot delete an album that contains songs.");
+                }
 
                 // Remove all related PlaylistSong entries
                 if (playlist.PlaylistSongs.Any())
@@ -330,16 +367,22 @@ namespace Groovo.Controllers
             }
         }
 
-        /// <summary>POST: /api/v1/playlists/{playlistId}/songs/{songId}</summary>
+        /// <summary>
+        /// POST: /api/v1/playlists/{playlistId}/songs/{songId}
+        /// Only owners or admins can add songs to the playlist (no albums)
+        /// </summary>
         /// <returns>201 if successful, 404 if playlist or song not found, 409 if song already in playlist</returns>
         [HttpPost("{playlistId:guid}/songs/{songId:guid}")]
+        [Authorize(Roles = "User,Admin")]
         public async Task<ActionResult> AddSongToPlaylist(Guid playlistId, Guid songId)
         {
             try
             {
                 var playlist = await _context.Playlists
+                    .Where(p => p.Id == playlistId && !p.IsAlbum)
                     .Include(p => p.PlaylistSongs)
-                    .FirstOrDefaultAsync(p => p.Id == playlistId && p.IsActive);
+                    .FirstOrDefaultAsync(p => p.IsActive && (User.IsInRole("Admin") ||
+                        p.PlaylistOwners.Any(po => po.UserId == Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??""))));
 
                 if (playlist == null)
                     return NotFound($"Playlist with ID {playlistId} not found.");
@@ -385,16 +428,22 @@ namespace Groovo.Controllers
             }
         }
 
-        /// <summary>DELETE: /api/v1/playlists/{playlistId}/songs/{songId}</summary>
+        /// <summary>
+        /// DELETE: /api/v1/playlists/{playlistId}/songs/{songId}
+        /// Only owners or admins can remove songs from the playlist (no albums)
+        /// </summary>
         /// <returns>204 if successful, 404 if playlist or song not found</returns>
         [HttpDelete("{playlistId:guid}/songs/{songId:guid}")]
+        [Authorize(Roles = "User,Admin")]
         public async Task<ActionResult> RemoveSongFromPlaylist(Guid playlistId, Guid songId)
         {
             try
             {
                 var playlist = await _context.Playlists
+                    .Where(p => p.Id == playlistId && !p.IsAlbum)
                     .Include(p => p.PlaylistSongs)
-                    .FirstOrDefaultAsync(p => p.Id == playlistId && p.IsActive);
+                    .FirstOrDefaultAsync(p => p.IsActive && (User.IsInRole("Admin") ||
+                        p.PlaylistOwners.Any(po => po.UserId == Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??""))));
 
                 if (playlist == null)
                     return NotFound($"Playlist with ID {playlistId} not found.");
@@ -429,6 +478,7 @@ namespace Groovo.Controllers
         /// <summary>GET: /api/v1/playlists/search</summary>
         /// <returns>List of playlists matching the search criteria</returns>
         [HttpGet("search")]
+        [Authorize(Roles = "User")]
         public async Task<ActionResult<IEnumerable<PlaylistSummaryResponse>>> Search([FromQuery] string query)
         {
             if (string.IsNullOrWhiteSpace(query))
