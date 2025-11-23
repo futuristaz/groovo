@@ -258,6 +258,23 @@ namespace Groovo.Controllers
                     _context.SongAuthors.AddRange(songAuthors);
                 }
 
+                // Add PlaylistSong entry for the album
+                var playlistSong = new PlaylistSong
+                {
+                    PlaylistId = request.Album,
+                    SongId = newSong.Id,
+                    Order = 0, // Will be updated based on existing songs in playlist
+                    AddedAt = DateTime.UtcNow
+                };
+
+                // Get the current max order in the album and increment
+                var maxOrder = await _context.PlaylistSongs
+                    .Where(ps => ps.PlaylistId == request.Album)
+                    .MaxAsync(ps => (int?)ps.Order) ?? -1;
+                playlistSong.Order = maxOrder + 1;
+
+                _context.PlaylistSongs.Add(playlistSong);
+
                 await _context.SaveChangesAsync();
 
                 var createdSong = await _context.Songs
@@ -299,7 +316,7 @@ namespace Groovo.Controllers
         /// <returns>204 if successful, 404 if not found</returns>
         [HttpPut("{id:guid}")]
         [Authorize(Roles = "Author,Admin")]
-        public async Task<ActionResult> Update(Guid id, [FromBody] UpdateSongRequest request)
+        public async Task<ActionResult> UpdateSong(Guid id, [FromBody] UpdateSongRequest request)
         {
             if (!ModelState.IsValid)
             {
@@ -322,6 +339,34 @@ namespace Groovo.Controllers
                         .FirstOrDefaultAsync();
                     if (album == null)
                         return BadRequest("Invalid album ID or you do not have permission to assign this album.");
+                    
+                    // If album is changing, update PlaylistSong entries
+                    if (existing.Album != request.Album.Value)
+                    {
+                        // Remove from old album
+                        var oldPlaylistSong = await _context.PlaylistSongs
+                            .FirstOrDefaultAsync(ps => ps.PlaylistId == existing.Album && ps.SongId == id);
+                        if (oldPlaylistSong != null)
+                        {
+                            _context.PlaylistSongs.Remove(oldPlaylistSong);
+                        }
+
+                        // Add to new album
+                        var maxOrder = await _context.PlaylistSongs
+                            .Where(ps => ps.PlaylistId == request.Album.Value)
+                            .MaxAsync(ps => (int?)ps.Order) ?? -1;
+
+                        var newPlaylistSong = new PlaylistSong
+                        {
+                            PlaylistId = request.Album.Value,
+                            SongId = id,
+                            Order = maxOrder + 1,
+                            AddedAt = DateTime.UtcNow
+                        };
+
+                        _context.PlaylistSongs.Add(newPlaylistSong);
+                    }
+                    
                     existing.Album = request.Album.Value;
                 }
 
