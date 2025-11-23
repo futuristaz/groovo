@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
+using Groovo.Hubs;
 using Groovo.Models;
 using Groovo.Data.Contexts;
 using Groovo.DTOs.Requests;
@@ -14,11 +16,13 @@ namespace Groovo.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<PlaylistsController> _logger;
+        private readonly IHubContext<PlaylistHub> _hub;
 
-        public PlaylistsController(ApplicationDbContext context, ILogger<PlaylistsController> logger)
+        public PlaylistsController(ApplicationDbContext context, ILogger<PlaylistsController> logger, IHubContext<PlaylistHub> hub)
         {
             _context = context;
             _logger = logger;
+            _hub = hub;
         }
 
         /// <summary>GET: /api/v1/playlists</summary>
@@ -374,6 +378,23 @@ namespace Groovo.Controllers
 
                 await _context.SaveChangesAsync();
 
+                // Notify all clients in the playlist group
+                var songResponse = new SongSummaryResponse(
+                    song,
+                    await _context.SongAuthors
+                        .Where(sa => sa.SongId == songId)
+                        .Include(sa => sa.User)
+                        .Where(sa => sa.User.Role == UserRole.Author)
+                        .Select(sa => sa.User.Name)
+                        .ToListAsync()
+                );
+                
+                await _hub.Clients.Group($"playlist_{playlistId}")
+                    .SendAsync("SongAdded", new {
+                        song = songResponse,
+                        order = nextOrder
+                    });
+
                 _logger.LogInformation("Added song {SongId} to playlist {PlaylistId}", songId, playlistId);
 
                 return Ok($"Added song '{song.Name}' to playlist '{playlist.Name}'.");
@@ -414,6 +435,8 @@ namespace Groovo.Controllers
                 }
 
                 await _context.SaveChangesAsync();
+
+                await _hub.Clients.Group($"playlist_{playlistId}").SendAsync("SongRemoved", songId);
 
                 _logger.LogInformation("Removed song {SongId} from playlist {PlaylistId}", songId, playlistId);
 
