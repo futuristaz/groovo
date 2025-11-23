@@ -34,7 +34,7 @@ namespace Groovo.Controllers
         /// </summary>
         /// <returns>Author details or 404 if not found</returns>
         [HttpGet("{id:guid}")]
-        [Authorize(Policy = "UserPolicy,AuthorPolicy,AdminPolicy")]
+        [Authorize(Roles = "User,Author,Admin")]
         public async Task<ActionResult<AuthorResponse>> GetAuthorById(Guid id)
         {
             try
@@ -69,7 +69,7 @@ namespace Groovo.Controllers
         /// </summary>
         /// <returns>List of songs authored by the author</returns>
         [HttpGet("{id:guid}/songs")]
-        [Authorize(Policy = "UserPolicy,AuthorPolicy,AdminPolicy")]
+        [Authorize(Roles = "User,Author,Admin")]
         public async Task<ActionResult<IEnumerable<SongSummaryResponse>>> GetAuthorSongs(Guid id)
         {
             try
@@ -110,7 +110,7 @@ namespace Groovo.Controllers
         /// </summary>
         /// <returns>List of playlists (aka albums) owned by the author</returns>
         [HttpGet("{id:guid}/playlists")]
-        [Authorize(Policy = "AuthorPolicy,AdminPolicy")]
+        [Authorize(Roles = "Author,Admin")]
         public async Task<ActionResult<IEnumerable<PlaylistSummaryResponse>>> GetAuthorPlaylists(Guid id)
         {
             if (User.IsInRole("Author") && User.FindFirstValue(ClaimTypes.NameIdentifier) != id.ToString())
@@ -164,7 +164,7 @@ namespace Groovo.Controllers
         /// </summary>
         /// <returns>Specific song with authors or 404 if not found</returns>
         [HttpGet("song/{id:guid}")]
-        [Authorize(Policy = "AuthorPolicy,AdminPolicy")]
+        [Authorize(Roles = "Author,Admin")]
         public async Task<ActionResult<SongResponse>> GetById(Guid id)
         {
             try
@@ -204,7 +204,7 @@ namespace Groovo.Controllers
         /// </summary>
         /// <returns>201 with the created song</returns>
         [HttpPost("song")]
-        [Authorize(Policy = "AuthorPolicy")]
+        [Authorize(Roles = "Author")]
         public async Task<ActionResult<SongResponse>> CreateSong([FromBody] CreateSongRequest request)
         {
             if (!ModelState.IsValid)
@@ -361,7 +361,7 @@ namespace Groovo.Controllers
         /// </summary>
         /// <returns>204 if successful, 404 if not found</returns>
         [HttpDelete("song/{id:guid}")]
-        [Authorize(Policy = "AuthorPolicy,AdminPolicy")]
+        [Authorize(Roles = "Author,Admin")]
         public async Task<ActionResult> DeleteSong(Guid id)
         {
             try
