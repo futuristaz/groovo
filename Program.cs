@@ -6,6 +6,7 @@ using Groovo.Services;
 using Groovo.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using System.Reflection;
 
 namespace Groovo;
 
@@ -59,6 +60,10 @@ public class Program
         {
             c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "Groovo API", Version = "v1" });
             c.SchemaFilter<EnumDescriptionSchemaFilter>();
+            
+            var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+            var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+            c.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
         });
         builder.Services.AddVersionedApiExplorer(options =>
         {
