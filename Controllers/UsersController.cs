@@ -199,15 +199,95 @@ namespace Groovo.Controllers
         }
 
         /// <summary>
+        /// GET: /api/v1/users/authors/{id}
+        /// </summary>
+        /// <returns>Author details or 404 if not found</returns>
+        [HttpGet("authors/{id:guid}")]
+        [Authorize(Roles = "User,Author,Admin")]
+        public async Task<ActionResult<AuthorResponse>> GetAuthorById(Guid id)
+        {
+            try
+            {
+                var user = await _context.Users
+                    .Where(u => u.Id == id && u.Role == UserRole.Author)
+                    .FirstOrDefaultAsync();
+
+                if (user == null)
+                    return NotFound($"Author with ID {id} not found.");
+
+                var authorResponse = new AuthorResponse(
+                    user.Id,
+                    user.Name,
+                    user.Bio,
+                    user.ImageUrl
+                );
+
+                return Ok(authorResponse);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving author {AuthorId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// GET: /api/v1/users/authors/{id}/songs
+        /// If id is the current user's ID or it is admin, returns all their authored songs.
+        /// Otherwise, returns only active songs.
+        /// </summary>
+        /// <returns>List of songs authored by the author</returns>
+        [HttpGet("authors/{id:guid}/songs")]
+        [Authorize(Roles = "User,Author,Admin")]
+        public async Task<ActionResult<IEnumerable<SongSummaryResponse>>> GetAuthorSongs(Guid id)
+        {
+            try
+            {
+                var user = await _context.Users
+                    .Include(u => u.SongAuthors)
+                    .ThenInclude(sa => sa.Song)
+                    .ThenInclude(s => s.SongAuthors)
+                    .ThenInclude(sa => sa.User)
+                    .FirstOrDefaultAsync(u => u.Id == id);
+
+                if (user == null)
+                    return NotFound($"User with ID {id} not found.");
+
+                var songs = user.SongAuthors
+                    .Where(sa => sa.Song.IsActive || sa.User.Id == id || User.IsInRole("Admin"))
+                    .Select(sa => sa.Song)
+                    .OrderByDescending(s => s.ReleaseDate)
+                    .Select(s => new SongSummaryResponse(
+                        s,
+                        s.SongAuthors.Where(sa => sa.User.Role == UserRole.Author)
+                            .Select(sa => sa.User.Name).ToList()
+                    )).ToList();
+
+                return Ok(songs);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving songs for author {UserId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
         /// GET: /api/v1/users/{id}/playlists
         /// Only the user themselves or admins can view all playlists
         /// Otherwise only public playlists are shown
+        /// Authors can only access their own playlists.
         /// </summary>
         /// <returns>List of playlists owned by the user</returns>
         [HttpGet("{id:guid}/playlists")]
-        [Authorize(Roles = "User,Admin")]
+        [Authorize(Roles = "User,Author,Admin")]
         public async Task<ActionResult<IEnumerable<PlaylistSummaryResponse>>> GetUserPlaylists(Guid id)
         {
+            if (User.IsInRole("Author") && User.FindFirstValue(ClaimTypes.NameIdentifier) != id.ToString())
+            {
+                return Forbid("Authors can only access their own playlists.");
+            }
+
             try
             {
                 bool showFullList = User.IsInRole("Admin") || Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "") == id;
