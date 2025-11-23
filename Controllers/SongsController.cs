@@ -94,12 +94,12 @@ namespace Groovo.Controllers
                     Name = request.Name,
                     Description = request.Description,
                     ReleaseDate = request.ReleaseDate,
-                    Picture = request.Picture,
+                    Picture = request.ImageId,
                     Album = request.Album,
                     Genre = request.Genre,
                     Tags = string.Join(",", request.Tags), // Convert list to comma-separated string
-                    AudioUrl = request.AudioUrl,
-                    Duration = new Models.Duration(request.Length), // Use Duration struct
+                    AudioUrl = request.AudioId,
+                    Duration = new Models.Duration(1), // Use Duration struct
                     IsActive = true
                 };
 

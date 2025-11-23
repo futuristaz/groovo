@@ -14,9 +14,6 @@ public class CreateSongRequest
     [Required]
     public DateTime ReleaseDate { get; set; }
     
-    [MaxLength(500)]
-    public string Picture { get; set; } = string.Empty;
-    
     public List<Guid> AuthorIds { get; set; } = new();
     
     [Required]
@@ -26,11 +23,10 @@ public class CreateSongRequest
     public string Genre { get; set; } = string.Empty;
     
     public List<string> Tags { get; set; } = new();
-    
+
     [Required]
-    [MaxLength(500)]
-    public string AudioUrl { get; set; } = string.Empty;
-    
-    [Range(1, int.MaxValue, ErrorMessage = "Length must be greater than 0")]
-    public int Length { get; set; }
+    public string AudioId { get; set; } = string.Empty;
+
+    [Required]
+    public string ImageId { get; set; } = string.Empty;
 }

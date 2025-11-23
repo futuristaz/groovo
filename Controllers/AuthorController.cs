@@ -4,6 +4,7 @@ using Groovo.Models;
 using Groovo.Data.Contexts;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
+using Groovo.Services;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
@@ -16,11 +17,16 @@ namespace Groovo.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<AuthorController> _logger;
+        private readonly ISongFileService _songFileService;
 
-        public AuthorController(ApplicationDbContext context, ILogger<AuthorController> logger)
+        public AuthorController(
+            ApplicationDbContext context, 
+            ILogger<AuthorController> logger,
+            ISongFileService songFileService)
         {
             _context = context;
             _logger = logger;
+            _songFileService = songFileService;
         }
 
         /// <summary>
@@ -213,6 +219,19 @@ namespace Groovo.Controllers
 
             try
             {
+                // Validate both audio and image IDs exist in temp storage
+                var audioExists = await _songFileService.FileExistsAsync(request.AudioId);
+                if (!audioExists)
+                {
+                    return BadRequest($"Audio file not found for upload ID: {request.AudioId}");
+                }
+
+                var imageExists = await _songFileService.FileExistsAsync(request.ImageId);
+                if (!imageExists)
+                {
+                    return BadRequest($"Image file not found for upload ID: {request.ImageId}");
+                }
+
                 List<Guid> validatedAuthorIds = new List<Guid>();
                 if (request.AuthorIds != null && request.AuthorIds.Any())
                 {
@@ -230,18 +249,62 @@ namespace Groovo.Controllers
                     validatedAuthorIds = existingAuthorIds;
                 }
 
+                // Get audio duration before moving files
+                int audioDuration;
+                try
+                {
+                    audioDuration = await _songFileService.GetAudioDurationAsync(request.AudioId);
+                    if (audioDuration <= 0)
+                    {
+                        _logger.LogWarning("Could not determine audio duration for upload ID: {AudioId}", request.AudioId);
+                        return BadRequest("Unable to determine audio file duration. The file may be corrupted or in an unsupported format.");
+                    }
+                    _logger.LogInformation("Audio duration: {Duration} seconds", audioDuration);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to read audio duration for upload ID: {AudioId}", request.AudioId);
+                    return BadRequest($"Failed to read audio file duration: {ex.Message}");
+                }
+
+                // Move files from temp to final storage
+                string audioFilePath;
+                string imageFilePath;
+
+                try
+                {
+                    audioFilePath = await _songFileService.MoveUploadedFileAsync(request.AudioId, "audio");
+                    _logger.LogInformation("Moved audio file to: {AudioPath}", audioFilePath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to move audio file for upload ID: {AudioId}", request.AudioId);
+                    return BadRequest($"Failed to process audio file: {ex.Message}");
+                }
+
+                try
+                {
+                    imageFilePath = await _songFileService.MoveUploadedFileAsync(request.ImageId, "images");
+                    _logger.LogInformation("Moved image file to: {ImagePath}", imageFilePath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to move image file for upload ID: {ImageId}", request.ImageId);
+                    return BadRequest($"Failed to process image file: {ex.Message}");
+                }
+
                 var newSong = new Song
                 {
                     Id = Guid.NewGuid(),
                     Name = request.Name,
                     Description = request.Description,
                     ReleaseDate = request.ReleaseDate,
-                    Picture = request.Picture,
+                    Picture = imageFilePath,
                     Album = request.Album,
                     Genre = request.Genre,
                     Tags = string.Join(",", request.Tags),
-                    AudioUrl = request.AudioUrl,
-                    Duration = new Models.Duration(request.Length),
+                    AudioUrl = audioFilePath,
+                    Duration = new Models.Duration(audioDuration),
                     IsActive = true
                 };
 
