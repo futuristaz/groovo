@@ -40,7 +40,7 @@ public class PlaylistService : IPlaylistService
     public async Task<Guid?> GetNextSongId(Guid playlistId, Guid currentSongId)
     {
         var currentSongOrder = await _dbContext.PlaylistSongs
-            .Where(ps => ps.PlaylistId == playlistId && ps.SongId == currentSongId)
+            .Where(ps => ps.PlaylistId == playlistId && ps.SongId == currentSongId && ps.Song.IsActive)
             .Select(ps => ps.Order)
             .FirstOrDefaultAsync();
 
@@ -50,7 +50,7 @@ public class PlaylistService : IPlaylistService
         }
 
         var nextSong = await _dbContext.PlaylistSongs
-            .Where(ps => ps.PlaylistId == playlistId && ps.Order > currentSongOrder)
+            .Where(ps => ps.PlaylistId == playlistId && ps.Order > currentSongOrder && ps.Song.IsActive)
             .OrderBy(ps => ps.Order)
             .Select(ps => ps.SongId)
             .FirstOrDefaultAsync();
@@ -65,7 +65,7 @@ public class PlaylistService : IPlaylistService
     public async Task<int> GetSongLength(Guid songId)
     {
         var songLength = await _dbContext.Songs
-            .Where(s => s.Id == songId)
+            .Where(s => s.Id == songId && s.IsActive)
             .Select(s => s.Length)
             .FirstOrDefaultAsync();
 
