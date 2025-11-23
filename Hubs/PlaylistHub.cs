@@ -7,6 +7,7 @@ using Groovo.Models;
 using System.Security.Claims;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using Groovo.DTOs;
 
 namespace Groovo.Hubs;
 
@@ -21,14 +22,6 @@ public class PlaylistHub : Hub
     {
         _dbContext = dbContext;
         _logger = logger;
-    }
-
-    private class PlaybackState
-    {
-        public bool IsPlaying { get; set; }
-        public Guid? CurrentSongId { get; set; }
-        public int CurrentPosition { get; set; }
-        public DateTime LastUpdated { get; set; }
     }
 
     private SemaphoreSlim GetPlaylistLock(Guid playlistId)
