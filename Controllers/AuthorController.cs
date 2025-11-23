@@ -193,13 +193,13 @@ namespace Groovo.Controllers
         }
 
         /// <summary>
-        /// POST: /api/v1/songs
+        /// POST: /api/v1/author/song
         /// Song should be created by authors and their own ID must be in AuthorIds.
         /// </summary>
         /// <returns>201 with the created song</returns>
-        [HttpPost]
+        [HttpPost("song")]
         [Authorize(Policy = "AuthorPolicy")]
-        public async Task<ActionResult<SongResponse>> Create([FromBody] CreateSongRequest request)
+        public async Task<ActionResult<SongResponse>> CreateSong([FromBody] CreateSongRequest request)
         {
             if (!ModelState.IsValid)
             {
@@ -293,13 +293,13 @@ namespace Groovo.Controllers
         }
 
         /// <summary>
-        /// DELETE: /api/v1/songs/{id}
+        /// DELETE: /api/v1/author/song/{id}
         /// Only authors who own the song and admins can delete it.
         /// </summary>
         /// <returns>204 if successful, 404 if not found</returns>
-        [HttpDelete("{id:guid}")]
+        [HttpDelete("song/{id:guid}")]
         [Authorize(Policy = "AuthorPolicy,AdminPolicy")]
-        public async Task<ActionResult> Delete(Guid id)
+        public async Task<ActionResult> DeleteSong(Guid id)
         {
             try
             {
