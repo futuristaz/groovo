@@ -7,10 +7,12 @@ using Groovo.Models;
 using System.Security.Claims;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using Microsoft.AspNetCore.Authorization;
 using Groovo.DTOs;
 
 namespace Groovo.Hubs;
 
+[Authorize(Roles = "User")]
 public class PlaylistHub : Hub
 {
     private readonly ApplicationDbContext _dbContext;
@@ -42,23 +44,13 @@ public class PlaylistHub : Hub
 
     private Guid GetUserId()
     {
-        var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var user = Context.User;
+        var userIdClaim = user?.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
         {
             throw new HubException("Unauthorized: Invalid user token");
         }
         return userId;
-    }
-
-    private async Task<UserRole> GetUserRole()
-    {
-        var userId = GetUserId();
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
-        if (user == null)
-        {
-            throw new HubException("User not found");
-        }
-        return user.Role;
     }
 
     private async Task<bool> IsPlaylistOwner(Guid playlistId, Guid userId)
