@@ -48,7 +48,15 @@ public class Program
             options.AddPolicy(name: DefaultCorsPolicy,
                 policy =>
                 {
-                    policy.AllowAnyOrigin();
+                    var allowedOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>();
+                    
+                    if (allowedOrigins != null && allowedOrigins.Length > 0)
+                    {
+                        policy.WithOrigins(allowedOrigins)
+                            .AllowAnyMethod()
+                            .AllowAnyHeader()
+                            .AllowCredentials();
+                    }
                 });
         });
 
