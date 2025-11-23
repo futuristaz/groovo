@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 using Groovo.Models;
 using Groovo.Data.Contexts;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
+using System.Security.Claims;
 
 namespace Groovo.Controllers
 {
@@ -24,6 +26,7 @@ namespace Groovo.Controllers
         /// <summary>GET: /api/v1/users</summary>
         /// <returns>List of users</returns>
         [HttpGet]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<IEnumerable<UserSummaryResponse>>> GetAll([FromQuery] UserRole? role = null)
         {
             try
@@ -58,6 +61,7 @@ namespace Groovo.Controllers
         /// <summary>GET: /api/v1/users/authors</summary>
         /// <returns>List of authors (users with Role = Author)</returns>
         [HttpGet("authors")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<IEnumerable<UserSummaryResponse>>> GetAuthors()
         {
             try
@@ -86,6 +90,7 @@ namespace Groovo.Controllers
         /// <summary>GET: /api/v1/users/{id}</summary>
         /// <returns>Specific user or 404 if not found</returns>
         [HttpGet("{id:guid}")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<UserResponse>> GetById(Guid id)
         {
             try
@@ -115,54 +120,10 @@ namespace Groovo.Controllers
             }
         }
 
-        /// <summary>POST: /api/v1/users</summary>
-        /// <returns>201 with the created user</returns>
-        [HttpPost]
-        public async Task<ActionResult<UserResponse>> Create([FromBody] CreateUserRequest request)
-        {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
-
-            try
-            {
-                var newUser = new User
-                {
-                    Id = Guid.NewGuid(),
-                    Name = request.Name,
-                    Bio = request.Bio ?? "",
-                    ImageUrl = request.ImageUrl ?? "",
-                    Role = request.Role
-                };
-
-                _context.Users.Add(newUser);
-                await _context.SaveChangesAsync();
-
-                var userResponse = new UserResponse(
-                    newUser.Id,
-                    newUser.Name,
-                    newUser.Bio ?? "",
-                    newUser.ImageUrl ?? "",
-                    newUser.Role,
-                    newUser.CreatedAt,
-                    newUser.UpdatedAt
-                );
-
-                _logger.LogInformation("Created new user {UserId}: {UserName}", newUser.Id, newUser.Name);
-
-                return CreatedAtAction(nameof(GetById), new { id = newUser.Id }, userResponse);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error creating user {UserName}", request.Name);
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
         /// <summary>PUT: /api/v1/users/{id}</summary>
         /// <returns>204 if successful, 404 if not found</returns>
         [HttpPut("{id:guid}")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult> Update(Guid id, [FromBody] UpdateUserRequest request)
         {
             if (!ModelState.IsValid)
@@ -179,7 +140,6 @@ namespace Groovo.Controllers
                 existing.Name = request.Name;
                 existing.Bio = request.Bio ?? "";
                 existing.ImageUrl = request.ImageUrl ?? "";
-                // UpdatedAt is handled automatically by the context
 
                 await _context.SaveChangesAsync();
 
@@ -197,6 +157,7 @@ namespace Groovo.Controllers
         /// <summary>DELETE: /api/v1/users/{id}</summary>
         /// <returns>204 if successful, 404 if not found</returns>
         [HttpDelete("{id:guid}")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult> Delete(Guid id)
         {
             try
@@ -237,49 +198,20 @@ namespace Groovo.Controllers
             }
         }
 
-        /// <summary>GET: /api/v1/users/{id}/songs</summary>
-        /// <returns>List of songs authored by the user</returns>
-        [HttpGet("{id:guid}/songs")]
-        public async Task<ActionResult<IEnumerable<SongSummaryResponse>>> GetUserSongs(Guid id)
-        {
-            try
-            {
-                var user = await _context.Users
-                    .Include(u => u.SongAuthors)
-                    .ThenInclude(sa => sa.Song)
-                    .ThenInclude(s => s.SongAuthors)
-                    .ThenInclude(sa => sa.User)
-                    .FirstOrDefaultAsync(u => u.Id == id);
-
-                if (user == null)
-                    return NotFound($"User with ID {id} not found.");
-
-                var songs = user.SongAuthors
-                    .Where(sa => sa.Song.IsActive)
-                    .Select(sa => sa.Song)
-                    .OrderByDescending(s => s.ReleaseDate)
-                    .Select(s => new SongSummaryResponse(
-                        s,
-                        s.SongAuthors.Where(sa => sa.User.Role == UserRole.Author)
-                            .Select(sa => sa.User.Name).ToList()
-                    )).ToList();
-
-                return Ok(songs);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error retrieving songs for user {UserId}", id);
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-        /// <summary>GET: /api/v1/users/{id}/playlists</summary>
+        /// <summary>
+        /// GET: /api/v1/users/{id}/playlists
+        /// Only the user themselves or admins can view all playlists
+        /// Otherwise only public playlists are shown
+        /// </summary>
         /// <returns>List of playlists owned by the user</returns>
         [HttpGet("{id:guid}/playlists")]
+        [Authorize(Roles = "User,Admin")]
         public async Task<ActionResult<IEnumerable<PlaylistSummaryResponse>>> GetUserPlaylists(Guid id)
         {
             try
             {
+                bool showFullList = User.IsInRole("Admin") || Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "") == id;
+
                 var user = await _context.Users
                     .Include(u => u.PlaylistOwners)
                     .ThenInclude(po => po.Playlist)
@@ -294,8 +226,8 @@ namespace Groovo.Controllers
                     return NotFound($"User with ID {id} not found.");
 
                 var playlists = user.PlaylistOwners
-                    .Where(po => po.Playlist.IsActive)
                     .Select(po => po.Playlist)
+                    .Where(p => showFullList || p.IsPublic)
                     .OrderByDescending(p => p.CreatedAt)
                     .Select(p => new PlaylistSummaryResponse(
                         p.Id,
@@ -320,6 +252,7 @@ namespace Groovo.Controllers
         /// <summary>GET: /api/v1/users/search</summary>
         /// <returns>List of users matching the search criteria</returns>
         [HttpGet("search")]
+        [Authorize(Roles = "User,Admin")]
         public async Task<ActionResult<IEnumerable<UserSummaryResponse>>> Search([FromQuery] string query, [FromQuery] UserRole? role = null)
         {
             if (string.IsNullOrWhiteSpace(query))
@@ -330,8 +263,8 @@ namespace Groovo.Controllers
             try
             {
                 var queryable = _context.Users
-                    .Where(u => u.Name.Contains(query) || 
-                           (u.Bio != null && u.Bio.Contains(query)));
+                    .Where(u => u.Role != UserRole.Admin && (u.Name.Contains(query) || 
+                           (u.Bio != null && u.Bio.Contains(query))));
 
                 if (role.HasValue)
                 {
