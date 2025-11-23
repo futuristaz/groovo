@@ -35,17 +35,6 @@ public class PlaylistHub : Hub
         _playbackStateStore = playbackStateStore;
     }
 
-    private Guid GetUserId()
-    {
-        var user = Context.User;
-        var userIdClaim = user?.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
-        {
-            throw new HubException("Unauthorized: Invalid user token");
-        }
-        return userId;
-    }
-
     /// <summary>
     /// Check if user can access playlist: is public or is owner
     /// </summary>
@@ -66,7 +55,6 @@ public class PlaylistHub : Hub
     {
         try
         {
-            var userId = GetUserId();
             await base.OnConnectedAsync();
         }
         catch (Exception ex)
@@ -114,7 +102,13 @@ public class PlaylistHub : Hub
             var newGroupName = $"playlist_{playlistId}";
             var stringifiedPlaylistId = playlistId.ToString();
             var connectionId = Context.ConnectionId;
-            var userId = GetUserId();
+            
+            var userIdClaim = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            {
+                throw new HubException("Unauthorized: Invalid user token");
+            }
 
             if (!await CanAccessPlaylist(playlistId, userId))
             {
