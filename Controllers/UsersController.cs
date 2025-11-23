@@ -294,7 +294,6 @@ namespace Groovo.Controllers
                     return NotFound($"User with ID {id} not found.");
 
                 var playlists = user.PlaylistOwners
-                    .Where(po => po.Playlist.IsActive)
                     .Select(po => po.Playlist)
                     .OrderByDescending(p => p.CreatedAt)
                     .Select(p => new PlaylistSummaryResponse(

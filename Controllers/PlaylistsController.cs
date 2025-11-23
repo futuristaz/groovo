@@ -32,7 +32,7 @@ namespace Groovo.Controllers
             {
                 var playlists = await _context.Playlists
                     .Include(p => p.PlaylistSongs)
-                    .Where(p => p.IsActive)
+                    .Where(p => p.IsPublic)
                     .OrderBy(p => p.CreatedAt)
                     .ToListAsync();
 
@@ -70,7 +70,7 @@ namespace Groovo.Controllers
                     .ThenInclude(sa => sa.User)
                     .Include(p => p.PlaylistOwners)
                     .ThenInclude(po => po.User)
-                    .Where(p => p.IsActive && p.Id == id)
+                    .Where(p => p.Id == id)
                     .FirstOrDefaultAsync();
 
                 if (playlist == null)
@@ -343,7 +343,7 @@ namespace Groovo.Controllers
                     .ThenInclude(ps => ps.Song)
                     .ThenInclude(s => s.SongAuthors)
                     .ThenInclude(sa => sa.User)
-                    .Where(p => p.IsActive && p.Id == id)
+                    .Where(p => p.Id == id)
                     .FirstOrDefaultAsync();
 
                 if (playlist == null)
@@ -381,8 +381,8 @@ namespace Groovo.Controllers
                 var playlist = await _context.Playlists
                     .Where(p => p.Id == playlistId && !p.IsAlbum)
                     .Include(p => p.PlaylistSongs)
-                    .FirstOrDefaultAsync(p => p.IsActive && (User.IsInRole("Admin") ||
-                        p.PlaylistOwners.Any(po => po.UserId == Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??""))));
+                    .FirstOrDefaultAsync(p => User.IsInRole("Admin") ||
+                        p.PlaylistOwners.Any(po => po.UserId == Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??"")));
 
                 if (playlist == null)
                     return NotFound($"Playlist with ID {playlistId} not found.");
@@ -442,8 +442,8 @@ namespace Groovo.Controllers
                 var playlist = await _context.Playlists
                     .Where(p => p.Id == playlistId && !p.IsAlbum)
                     .Include(p => p.PlaylistSongs)
-                    .FirstOrDefaultAsync(p => p.IsActive && (User.IsInRole("Admin") ||
-                        p.PlaylistOwners.Any(po => po.UserId == Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??""))));
+                    .FirstOrDefaultAsync(p => User.IsInRole("Admin") ||
+                        p.PlaylistOwners.Any(po => po.UserId == Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??"")));
 
                 if (playlist == null)
                     return NotFound($"Playlist with ID {playlistId} not found.");
@@ -490,7 +490,7 @@ namespace Groovo.Controllers
             {
                 var playlists = await _context.Playlists
                     .Include(p => p.PlaylistSongs)
-                    .Where(p => p.IsActive && p.IsPublic && (
+                    .Where(p => p.IsPublic && (
                         p.Name.Contains(query) ||
                         (p.Description != null && p.Description.Contains(query))
                     ))
