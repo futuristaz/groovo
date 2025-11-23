@@ -20,37 +20,24 @@ public class PlaylistHub : Hub
     private readonly ILogger<PlaylistHub> _logger;
     private readonly IPlaybackStateStore<string, PlaybackState> _playbackStateStore;
     private readonly IUserPlaylistTracker<string, string> _userPlaylistTracker;
+    private readonly IPlaylistService _playlistService;
     
 
     public PlaylistHub(
         ApplicationDbContext dbContext,
         ILogger<PlaylistHub> logger,
         IUserPlaylistTracker<string, string> userPlaylistTracker,
-        IPlaybackStateStore<string, PlaybackState> playbackStateStore
+        IPlaybackStateStore<string, PlaybackState> playbackStateStore,
+        IPlaylistService playlistService
     )
     {
         _dbContext = dbContext;
         _logger = logger;
         _userPlaylistTracker = userPlaylistTracker;
         _playbackStateStore = playbackStateStore;
+        _playlistService = playlistService;
     }
 
-    /// <summary>
-    /// Check if user can access playlist: is public or is owner
-    /// </summary>
-    /// <param name="playlistId"></param>
-    /// <param name="userId"></param>
-    private async Task<bool> CanAccessPlaylist(Guid playlistId, Guid userId)
-    {
-        var playlist = await _dbContext.Playlists
-            .Include(p => p.PlaylistOwners)
-            .Where(p => p.Id == playlistId && (p.IsPublic || p.PlaylistOwners.Any(po => po.UserId == userId)))
-            .FirstOrDefaultAsync();
-
-        return playlist != null;
-    }
-
-    /// <summary>New connection</summary>
     public override async Task OnConnectedAsync()
     {
         try
@@ -91,10 +78,6 @@ public class PlaylistHub : Hub
         }
     }
 
-    /// <summary>
-    /// 1ST STEP: Join playlist group
-    /// </summary>
-    /// <param name="playlistId"></param>
     public async Task JoinPlaylist(Guid playlistId)
     {
         try
@@ -110,7 +93,7 @@ public class PlaylistHub : Hub
                 throw new HubException("Unauthorized: Invalid user token");
             }
 
-            if (!await CanAccessPlaylist(playlistId, userId))
+            if (!await _playlistService.CanAccessPlaylist(playlistId, userId))
             {
                 throw new HubException("Unauthorized: Cannot access this playlist");
             }
@@ -189,37 +172,6 @@ public class PlaylistHub : Hub
         }
     }
 
-    private Guid? getNextSongId(Guid playlistId, Guid currentSongId)
-    {
-        var currentSongOrder = _dbContext.PlaylistSongs
-            .Where(ps => ps.PlaylistId == playlistId && ps.SongId == currentSongId)
-            .Select(ps => ps.Order)
-            .FirstOrDefault();
-        
-        if (currentSongOrder == 0)
-        {
-            return null;
-        }
-
-        var nextSong = _dbContext.PlaylistSongs
-            .Where(ps => ps.PlaylistId == playlistId && ps.Order > currentSongOrder)
-            .OrderBy(ps => ps.Order)
-            .Select(ps => ps.SongId)
-            .FirstOrDefault();
-
-        return nextSong == Guid.Empty ? null : nextSong;
-    }
-
-    private int getSongLength(Guid songId)
-    {
-        var songLength = _dbContext.Songs
-            .Where(s => s.Id == songId)
-            .Select(s => s.Length)
-            .FirstOrDefault();
-
-        return songLength;
-    }
-
     public async Task PlaySong(Guid? songId)
     {
         var playlistId = _userPlaylistTracker.GetPlaylist(Context.ConnectionId);
@@ -238,7 +190,7 @@ public class PlaylistHub : Hub
             throw new HubException("No song specified to play");
         }
 
-        var songLength = getSongLength(songId.Value);
+        var songLength = await _playlistService.GetSongLength(songId.Value);
         if (songLength == 0)
         {
             throw new HubException("Song not found");
@@ -246,12 +198,14 @@ public class PlaylistHub : Hub
 
         try
         {
+            var nextSongId = await _playlistService.GetNextSongId(Guid.Parse(playlistId), songId.Value);
+            
             var newState = _playbackStateStore.TryUpdate(playlistId, ps =>
             {
                 ps.CurrentSongId = songId.Value;
                 ps.CurrentPosition = 0;
                 ps.CurrentLength = songLength;
-                ps.NextSongId = getNextSongId(Guid.Parse(playlistId), songId.Value);
+                ps.NextSongId = nextSongId;
                 ps.IsPlaying = true;
                 ps.LastUpdated = DateTime.UtcNow;
                 return ps;
