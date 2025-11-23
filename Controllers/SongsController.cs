@@ -25,7 +25,7 @@ namespace Groovo.Controllers
         /// <summary>GET: /api/v1/songs/{id}</summary>
         /// <returns>Specific song with authors or 404 if not found</returns>
         [HttpGet("{id:guid}")]
-        [Authorize(Policy = "UserPolicy")]
+        [Authorize(Roles = "User")]
         public async Task<ActionResult<SongResponse>> GetById(Guid id)
         {
             try
@@ -194,7 +194,7 @@ namespace Groovo.Controllers
         /// <summary>GET: /api/v1/songs/search</summary>
         /// <returns>List of songs matching the search criteria</returns>
         [HttpGet("search")]
-        [Authorize(Policy = "UserPolicy")]
+        [Authorize(Roles = "User")]
         public async Task<ActionResult<IEnumerable<SongSummaryResponse>>> Search([FromQuery] string query)
         {
             if (string.IsNullOrWhiteSpace(query))
