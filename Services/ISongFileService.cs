@@ -31,4 +31,11 @@ public interface ISongFileService
     /// <param name="uploadId">The tus upload ID</param>
     /// <returns>Duration in seconds, or 0 if unable to read</returns>
     Task<int> GetAudioDurationAsync(string uploadId);
+
+    /// <summary>
+    /// Deletes a file from final storage
+    /// </summary>
+    /// <param name="relativeFilePath">The relative file path (e.g., "audio/file.mp3" or "images/file.jpg")</param>
+    /// <returns>True if file was deleted, false if file didn't exist</returns>
+    Task<bool> DeleteFileAsync(string relativeFilePath);
 }

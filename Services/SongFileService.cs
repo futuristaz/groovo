@@ -164,4 +164,32 @@ public class SongFileService : ISongFileService
             return Task.FromResult(0);
         }
     }
+
+    public Task<bool> DeleteFileAsync(string relativeFilePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativeFilePath))
+        {
+            return Task.FromResult(false);
+        }
+
+        try
+        {
+            var fullPath = Path.Combine(_storageConfig.FinalPath, relativeFilePath);
+            
+            if (!File.Exists(fullPath))
+            {
+                _logger.LogWarning("File not found for deletion: {FilePath}", fullPath);
+                return Task.FromResult(false);
+            }
+
+            File.Delete(fullPath);
+            _logger.LogInformation("Deleted file: {FilePath}", fullPath);
+            return Task.FromResult(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete file: {RelativePath}", relativeFilePath);
+            return Task.FromResult(false);
+        }
+    }
 }

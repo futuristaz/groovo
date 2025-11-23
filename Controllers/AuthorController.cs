@@ -390,6 +390,25 @@ namespace Groovo.Controllers
                 
                 await _context.SaveChangesAsync();
 
+                // Delete associated files from storage
+                if (!string.IsNullOrWhiteSpace(song.AudioUrl))
+                {
+                    var audioDeleted = await _songFileService.DeleteFileAsync(song.AudioUrl);
+                    if (audioDeleted)
+                    {
+                        _logger.LogInformation("Deleted audio file: {AudioUrl}", song.AudioUrl);
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(song.Picture))
+                {
+                    var imageDeleted = await _songFileService.DeleteFileAsync(song.Picture);
+                    if (imageDeleted)
+                    {
+                        _logger.LogInformation("Deleted image file: {Picture}", song.Picture);
+                    }
+                }
+
                 _logger.LogInformation("Deleted song {SongId}: {SongName} and all related entries", id, song.Name);
 
                 return NoContent();

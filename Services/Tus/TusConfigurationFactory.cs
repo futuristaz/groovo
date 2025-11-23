@@ -1,3 +1,5 @@
+using System.Net;
+using System.Security.Claims;
 using tusdotnet.Models;
 using tusdotnet.Models.Configuration;
 using tusdotnet.Stores;
@@ -30,6 +32,19 @@ public class TusConfigurationFactory
             MetadataParsingStrategy = MetadataParsingStrategy.AllowEmptyValues,
             Events = new Events
             {
+                OnAuthorizeAsync = ctx =>
+                {
+                    var http = ctx.HttpContext;
+
+                    // Reject unauthenticated users
+                    if (!http.User.Identity?.IsAuthenticated ?? true)
+                    {
+                        ctx.FailRequest(HttpStatusCode.Unauthorized, "Authentication is required.");
+                    }
+
+                    return Task.CompletedTask;
+                },
+
                 OnFileCompleteAsync = async eventContext =>
                 {
                     var file = await eventContext.GetFileAsync();
@@ -40,8 +55,6 @@ public class TusConfigurationFactory
                         file.Id,
                         metadata.TryGetValue("filename", out var filename) ? filename.GetString(System.Text.Encoding.UTF8) : "unknown"
                     );
-
-                    // Do not move file here - movement happens after form submission
                 }
             }
         };
