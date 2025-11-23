@@ -293,6 +293,67 @@ namespace Groovo.Controllers
         }
 
         /// <summary>
+        /// PUT: /api/v1/songs/{id}
+        /// Only authors who own the song and admins can update it.
+        /// </summary>
+        /// <returns>204 if successful, 404 if not found</returns>
+        [HttpPut("{id:guid}")]
+        [Authorize(Roles = "Author,Admin")]
+        public async Task<ActionResult> Update(Guid id, [FromBody] UpdateSongRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            try
+            {
+                var existing = await _context.Songs.FirstOrDefaultAsync(s => s.Id == id && (User.IsInRole("Admin") ||
+                        s.SongAuthors.Any(sa => sa.UserId.ToString() == User.FindFirstValue(ClaimTypes.NameIdentifier))));
+                if (existing == null)
+                    return NotFound($"Song with ID {id} not found.");
+
+                if (request.Album.HasValue) {
+                    // Check if album exists, it is album and author owns it
+                    var album = await _context.Playlists
+                        .Where(p => p.Id == request.Album.Value && p.IsAlbum &&
+                            (User.IsInRole("Admin") ||
+                                p.PlaylistOwners.Any(po => po.UserId.ToString() == User.FindFirstValue(ClaimTypes.NameIdentifier))))
+                        .FirstOrDefaultAsync();
+                    if (album == null)
+                        return BadRequest("Invalid album ID or you do not have permission to assign this album.");
+                    existing.Album = request.Album.Value;
+                }
+
+                if (request.Name != null)
+                    existing.Name = request.Name;
+                    
+                if (request.Description != null)
+                    existing.Description = request.Description;
+                    
+                if (request.Genre != null)
+                    existing.Genre = request.Genre;
+                    
+                if (request.Tags != null)
+                    existing.Tags = string.Join(",", request.Tags);
+                    
+                if (request.ReleaseDate.HasValue)
+                    existing.ReleaseDate = request.ReleaseDate.Value;
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Updated song {SongId}: {SongName}", id, existing.Name);
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating song {SongId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
         /// DELETE: /api/v1/author/song/{id}
         /// Only authors who own the song and admins can delete it.
         /// </summary>

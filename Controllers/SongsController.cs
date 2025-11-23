@@ -61,6 +61,7 @@ namespace Groovo.Controllers
         /// <summary>POST: /api/v1/songs</summary>
         /// <returns>201 with the created song</returns>
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<SongResponse>> Create([FromBody] CreateSongRequest request)
         {
             if (!ModelState.IsValid)
@@ -149,44 +150,6 @@ namespace Groovo.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating song {SongName}", request.Name);
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-        /// <summary>PUT: /api/v1/songs/{id}</summary>
-        /// <returns>204 if successful, 404 if not found</returns>
-        [HttpPut("{id:guid}")]
-        public async Task<ActionResult> Update(Guid id, [FromBody] UpdateSongRequest request)
-        {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
-
-            try
-            {
-                var existing = await _context.Songs.FirstOrDefaultAsync(s => s.Id == id);
-                if (existing == null)
-                    return NotFound($"Song with ID {id} not found.");
-
-                existing.Name = request.Name;
-                existing.Description = request.Description;
-                existing.Picture = request.Picture;
-                existing.Album = request.Album;
-                existing.Genre = request.Genre;
-                existing.Tags = string.Join(",", request.Tags);
-                existing.AudioUrl = request.AudioUrl;
-                existing.Duration = new Models.Duration(request.Length);
-
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation("Updated song {SongId}: {SongName}", id, existing.Name);
-
-                return NoContent();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating song {SongId}", id);
                 return StatusCode(500, "Internal server error");
             }
         }
