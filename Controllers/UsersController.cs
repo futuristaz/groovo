@@ -1,10 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authorization;
 using Groovo.Models;
-using Groovo.Data.Contexts;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
+using Groovo.Services;
 using System.Security.Claims;
 
 namespace Groovo.Controllers
@@ -14,12 +13,12 @@ namespace Groovo.Controllers
     [ApiVersion("1.0")]
     public class UsersController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IUserService _userService;
         private readonly ILogger<UsersController> _logger;
 
-        public UsersController(ApplicationDbContext context, ILogger<UsersController> logger)
+        public UsersController(IUserService userService, ILogger<UsersController> logger)
         {
-            _context = context;
+            _userService = userService;
             _logger = logger;
         }
 
@@ -31,24 +30,7 @@ namespace Groovo.Controllers
         {
             try
             {
-                var query = _context.Users.AsQueryable();
-
-                if (role.HasValue)
-                {
-                    query = query.Where(u => u.Role == role.Value);
-                }
-
-                var users = await query
-                    .OrderBy(u => u.Name)
-                    .ToListAsync();
-
-                var userSummaries = users.Select(u => new UserSummaryResponse(
-                    u.Id,
-                    u.Name,
-                    u.ImageUrl ?? "",
-                    u.Role
-                )).ToList();
-
+                var userSummaries = await _userService.GetAllUsersAsync(role);
                 return Ok(userSummaries);
             }
             catch (Exception ex)
@@ -66,18 +48,7 @@ namespace Groovo.Controllers
         {
             try
             {
-                var authors = await _context.Users
-                    .Where(u => u.Role == UserRole.Author)
-                    .OrderBy(u => u.Name)
-                    .ToListAsync();
-
-                var authorSummaries = authors.Select(a => new UserSummaryResponse(
-                    a.Id,
-                    a.Name,
-                    a.ImageUrl ?? "",
-                    a.Role
-                )).ToList();
-
+                var authorSummaries = await _userService.GetAuthorsAsync();
                 return Ok(authorSummaries);
             }
             catch (Exception ex)
@@ -95,21 +66,10 @@ namespace Groovo.Controllers
         {
             try
             {
-                var user = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Id == id);
+                var userResponse = await _userService.GetUserByIdAsync(id);
 
-                if (user == null)
+                if (userResponse == null)
                     return NotFound($"User with ID {id} not found.");
-
-                var userResponse = new UserResponse(
-                    user.Id,
-                    user.Name,
-                    user.Bio ?? "",
-                    user.ImageUrl ?? "",
-                    user.Role,
-                    user.CreatedAt,
-                    user.UpdatedAt
-                );
 
                 return Ok(userResponse);
             }
@@ -133,17 +93,10 @@ namespace Groovo.Controllers
 
             try
             {
-                var existing = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
-                if (existing == null)
+                var success = await _userService.UpdateUserAsync(id, request.Name, request.Bio, request.ImageUrl);
+                
+                if (!success)
                     return NotFound($"User with ID {id} not found.");
-
-                existing.Name = request.Name;
-                existing.Bio = request.Bio ?? "";
-                existing.ImageUrl = request.ImageUrl ?? "";
-
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation("Updated user {UserId}: {UserName}", id, existing.Name);
 
                 return NoContent();
             }
@@ -162,32 +115,10 @@ namespace Groovo.Controllers
         {
             try
             {
-                var user = await _context.Users
-                    .Include(u => u.SongAuthors)
-                    .Include(u => u.PlaylistOwners)
-                    .FirstOrDefaultAsync(u => u.Id == id);
+                var success = await _userService.DeleteUserAsync(id);
                 
-                if (user == null)
+                if (!success)
                     return NotFound($"User with ID {id} not found.");
-
-                // Remove all related SongAuthor entries
-                if (user.SongAuthors.Any())
-                {
-                    _context.SongAuthors.RemoveRange(user.SongAuthors);
-                }
-
-                // Remove all related PlaylistOwner entries
-                if (user.PlaylistOwners.Any())
-                {
-                    _context.PlaylistOwners.RemoveRange(user.PlaylistOwners);
-                }
-
-                // Remove the user itself
-                _context.Users.Remove(user);
-                
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation("Deleted user {UserId}: {UserName} and all related entries", id, user.Name);
 
                 return NoContent();
             }
@@ -208,19 +139,10 @@ namespace Groovo.Controllers
         {
             try
             {
-                var user = await _context.Users
-                    .Where(u => u.Id == id && u.Role == UserRole.Author)
-                    .FirstOrDefaultAsync();
+                var authorResponse = await _userService.GetAuthorByIdAsync(id);
 
-                if (user == null)
+                if (authorResponse == null)
                     return NotFound($"Author with ID {id} not found.");
-
-                var authorResponse = new AuthorResponse(
-                    user.Id,
-                    user.Name,
-                    user.Bio,
-                    user.ImageUrl
-                );
 
                 return Ok(authorResponse);
             }
@@ -243,25 +165,17 @@ namespace Groovo.Controllers
         {
             try
             {
-                var user = await _context.Users
-                    .Include(u => u.SongAuthors)
-                    .ThenInclude(sa => sa.Song)
-                    .ThenInclude(s => s.SongAuthors)
-                    .ThenInclude(sa => sa.User)
-                    .FirstOrDefaultAsync(u => u.Id == id);
+                var requestingUserId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId) ? userId : (Guid?)null;
+                var isAdmin = User.IsInRole("Admin");
 
-                if (user == null)
-                    return NotFound($"User with ID {id} not found.");
+                var songs = await _userService.GetAuthorSongsAsync(id, requestingUserId, isAdmin);
 
-                var songs = user.SongAuthors
-                    .Where(sa => sa.Song.IsActive || sa.User.Id == id || User.IsInRole("Admin"))
-                    .Select(sa => sa.Song)
-                    .OrderByDescending(s => s.ReleaseDate)
-                    .Select(s => new SongSummaryResponse(
-                        s,
-                        s.SongAuthors.Where(sa => sa.User.Role == UserRole.Author)
-                            .Select(sa => sa.User.Name).ToList()
-                    )).ToList();
+                if (songs.Count == 0)
+                {
+                    var author = await _userService.GetAuthorByIdAsync(id);
+                    if (author == null)
+                        return NotFound($"User with ID {id} not found.");
+                }
 
                 return Ok(songs);
             }
@@ -292,33 +206,14 @@ namespace Groovo.Controllers
             {
                 bool showFullList = User.IsInRole("Admin") || Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "") == id;
 
-                var user = await _context.Users
-                    .Include(u => u.PlaylistOwners)
-                    .ThenInclude(po => po.Playlist)
-                    .ThenInclude(p => p.PlaylistSongs)
-                    .Include(u => u.PlaylistOwners)
-                    .ThenInclude(po => po.Playlist)
-                    .ThenInclude(p => p.PlaylistOwners)
-                    .ThenInclude(po => po.User)
-                    .FirstOrDefaultAsync(u => u.Id == id);
+                var playlists = await _userService.GetUserPlaylistsAsync(id, showFullList);
 
-                if (user == null)
-                    return NotFound($"User with ID {id} not found.");
-
-                var playlists = user.PlaylistOwners
-                    .Select(po => po.Playlist)
-                    .Where(p => showFullList || p.IsPublic)
-                    .OrderByDescending(p => p.CreatedAt)
-                    .Select(p => new PlaylistSummaryResponse(
-                        p.Id,
-                        p.Name,
-                        p.Description ?? "",
-                        p.Picture ?? "",
-                        p.IsPublic,
-                        p.IsAlbum,
-                        p.TotalTime,
-                        p.PlaylistSongs?.Count ?? 0
-                    )).ToList();
+                if (playlists.Count == 0)
+                {
+                    var user = await _userService.GetUserByIdAsync(id);
+                    if (user == null)
+                        return NotFound($"User with ID {id} not found.");
+                }
 
                 return Ok(playlists);
             }
@@ -342,26 +237,7 @@ namespace Groovo.Controllers
 
             try
             {
-                var queryable = _context.Users
-                    .Where(u => u.Role != UserRole.Admin && (u.Name.Contains(query) || 
-                           (u.Bio != null && u.Bio.Contains(query))));
-
-                if (role.HasValue)
-                {
-                    queryable = queryable.Where(u => u.Role == role.Value);
-                }
-
-                var users = await queryable
-                    .OrderBy(u => u.Name)
-                    .ToListAsync();
-
-                var userSummaries = users.Select(u => new UserSummaryResponse(
-                    u.Id,
-                    u.Name,
-                    u.ImageUrl ?? "",
-                    u.Role
-                )).ToList();
-
+                var userSummaries = await _userService.SearchUsersAsync(query, role);
                 return Ok(userSummaries);
             }
             catch (Exception ex)
