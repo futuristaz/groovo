@@ -46,7 +46,7 @@ public class ApiResponseFilter : IResultFilter
         return result;
     }
 
-    private ApiResponse<T?> WrapData<T>(T value, int statusCode)
+    private ApiResponse<object> WrapData<T>(T value, int statusCode)
       where T : class, IApiResponseValue
     {
         bool isSuccess = statusCode >= 200 && statusCode < 300;
@@ -81,11 +81,11 @@ public class ApiResponseFilter : IResultFilter
             }
         }
 
-        return new ApiResponse<T?>
+        return new ApiResponse<object>
         {
             Success = isSuccess,
             StatusCode = statusCode,
-            Data = isSuccess ? value : null,
+            Data = isSuccess ? value?.GetValue() : null,
             Error = isSuccess ? Array.Empty<ApiError>() : error,
             Meta = new { Timestamp = DateTime.UtcNow }
         };
