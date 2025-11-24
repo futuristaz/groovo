@@ -110,13 +110,13 @@ public class Program
             app.UseSwaggerUI();
         }
 
-        app.UseTus(context => context.RequestServices
-            .GetRequiredService<TusConfigurationFactory>()
-            .GetConfiguration());
-
         // Use official Authentication and Authorization middleware
         app.UseAuthentication();
         app.UseAuthorization();
+
+        app.UseTus(context => context.RequestServices
+            .GetRequiredService<TusConfigurationFactory>()
+            .GetConfiguration());
 
         app.MapControllers();
 

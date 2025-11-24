@@ -37,7 +37,7 @@ public class TusConfigurationFactory
                     var http = ctx.HttpContext;
 
                     // Reject unauthenticated users
-                    if (!http.User.Identity?.IsAuthenticated ?? true)
+                    if (!(http.User.Identity?.IsAuthenticated ?? false))
                     {
                         ctx.FailRequest(HttpStatusCode.Unauthorized, "Authentication is required.");
                     }
