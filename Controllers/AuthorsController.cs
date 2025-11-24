@@ -1,8 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Groovo.Models;
-using Groovo.Data.Contexts;
-using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
 using Groovo.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -15,12 +11,12 @@ namespace Groovo.Controllers
     [ApiVersion("1.0")]
     public class AuthorController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IAuthorService _authorService;
         private readonly ILogger<AuthorController> _logger;
 
-        public AuthorController(ApplicationDbContext context, ILogger<AuthorController> logger)
+        public AuthorController(IAuthorService authorService, ILogger<AuthorController> logger)
         {
-            _context = context;
+            _authorService = authorService;
             _logger = logger;
         }
 
@@ -36,25 +32,13 @@ namespace Groovo.Controllers
         {
             try
             {
-                var song = await _context.Songs
-                    .Include(s => s.SongAuthors)
-                    .ThenInclude(sa => sa.User)
-                    .Where(s => s.Id == id && (User.IsInRole("Admin") ||
-                        s.SongAuthors.Any(sa => sa.UserId.ToString() == User.FindFirstValue(ClaimTypes.NameIdentifier))))
-                    .FirstOrDefaultAsync();
+                var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+                var isAdmin = User.IsInRole("Admin");
 
-                if (song == null)
+                var songResponse = await _authorService.GetAuthorSongByIdAsync(id, userId, isAdmin);
+
+                if (songResponse == null)
                     return NotFound($"Song with ID {id} not found.");
-
-                var songResponse = new SongResponse(
-                    song,
-                    song.SongAuthors.Where(sa => sa.User.Role == UserRole.Author).Select(sa => new AuthorResponse(
-                        sa.User.Id,
-                        sa.User.Name,
-                        sa.User.Bio,
-                        sa.User.ImageUrl
-                    )).ToList()
-                );
 
                 return Ok(songResponse);
             }
