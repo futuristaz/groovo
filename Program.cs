@@ -9,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using System.Reflection;
 using tusdotnet;
+using Serilog;
+using Groovo.Services.Hub;
 
 namespace Groovo;
 
@@ -17,6 +19,23 @@ public class Program
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        var DefaultCorsPolicy = "_AllowAllPolicy";
+
+        var loggerConfig = new LoggerConfiguration()
+            .MinimumLevel.Debug();
+  
+        loggerConfig.WriteTo.File("logs/app.log",
+            rollingInterval: RollingInterval.Day,
+            restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Warning
+        );
+
+        if (builder.Environment.IsDevelopment())
+        {
+            loggerConfig.WriteTo.Console();
+        }
+
+        Log.Logger = loggerConfig.CreateLogger();
+        builder.Host.UseSerilog();
 
         // Add Entity Framework
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -53,6 +72,23 @@ public class Program
             options.AddPolicy("UserPolicy", policy => policy.RequireRole("User"));
         });
 
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy(name: DefaultCorsPolicy,
+                policy =>
+                {
+                    var allowedOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>();
+                    
+                    if (allowedOrigins != null && allowedOrigins.Length > 0)
+                    {
+                        policy.WithOrigins(allowedOrigins)
+                            .AllowAnyMethod()
+                            .AllowAnyHeader()
+                            .AllowCredentials();
+                    }
+                });
+        });
+
         builder.Services.AddControllers(options =>
         {
             options.Filters.Add<ApiResponseFilter>();
@@ -82,6 +118,9 @@ public class Program
         });
 
         builder.Services.AddSignalR();
+        builder.Services.AddSingleton<IUserPlaylistTracker<string, string>, UserPlaylistTracker>();
+        builder.Services.AddSingleton<IPlaybackStateStore<string, DTOs.PlaybackState>, PlaybackStateStore>();
+        builder.Services.AddScoped<IPlaylistService, PlaylistService>();
 
         var app = builder.Build();
 
@@ -108,6 +147,7 @@ public class Program
         {
             app.UseSwagger();
             app.UseSwaggerUI();
+            app.UseCors(DefaultCorsPolicy);
         }
 
         // Use official Authentication and Authorization middleware

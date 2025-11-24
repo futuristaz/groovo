@@ -7,6 +7,7 @@ using Groovo.DTOs.Responses;
 using Groovo.Services;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using Groovo.DTOs;
 
 namespace Groovo.Controllers
 {

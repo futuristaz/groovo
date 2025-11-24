@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
 using Groovo.Services;
+using Groovo.Exceptions;
 
 namespace Groovo.Controllers;
 
@@ -34,10 +35,6 @@ public class AuthController : ControllerBase
         try
         {
             var result = await _authService.RegisterAsync(request);
-            if (result == null)
-            {
-                return BadRequest("User with this email already exists");
-            }
 
             // Set refresh token in HTTP-only cookie
             ControlRefreshTokenCookie(result.RefreshToken);
@@ -50,6 +47,10 @@ public class AuthController : ControllerBase
 
             _logger.LogInformation("User registered successfully: {Email}", request.Email);
             return CreatedAtAction(nameof(Register), response);
+        }
+        catch (UserAlreadyExistsException ex)
+        {
+            return BadRequest(ex.Message);
         }
         catch (Exception ex)
         {
@@ -71,10 +72,6 @@ public class AuthController : ControllerBase
         try
         {
             var result = await _authService.LoginAsync(request);
-            if (result == null)
-            {
-                return Unauthorized("Invalid email or password");
-            }
 
             // Set refresh token
             ControlRefreshTokenCookie(result.RefreshToken);
@@ -86,6 +83,10 @@ public class AuthController : ControllerBase
 
             _logger.LogInformation("User logged in successfully: {Email}", request.Email);
             return Ok(response);
+        }
+        catch (InvalidCredentialsException ex)
+        {
+            return Unauthorized(ex.Message);
         }
         catch (Exception ex)
         {
@@ -109,12 +110,6 @@ public class AuthController : ControllerBase
             }
 
             var result = await _authService.RefreshTokenAsync(refreshToken);
-            if (result == null)
-            {
-                // Clear invalid cookie
-                ControlRefreshTokenCookie(setCookie: false);
-                return Unauthorized("Invalid or expired refresh token");
-            }
 
             // Set new refresh token
             ControlRefreshTokenCookie(result.RefreshToken);
@@ -127,6 +122,12 @@ public class AuthController : ControllerBase
 
             _logger.LogInformation("Token refreshed successfully");
             return Ok(response);
+        }
+        catch (InvalidRefreshTokenException ex)
+        {
+            // Clear invalid cookie
+            ControlRefreshTokenCookie(setCookie: false);
+            return Unauthorized(ex.Message);
         }
         catch (Exception ex)
         {
@@ -153,6 +154,12 @@ public class AuthController : ControllerBase
             ControlRefreshTokenCookie(setCookie: false);
 
             _logger.LogInformation("User logged out successfully");
+            return Ok("Logged out successfully");
+        }
+        catch (TokenRevocationException)
+        {
+            // Still clear the cookie even if revocation failed
+            ControlRefreshTokenCookie(setCookie: false);
             return Ok("Logged out successfully");
         }
         catch (Exception ex)

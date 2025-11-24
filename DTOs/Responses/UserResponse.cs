@@ -10,4 +10,4 @@ public record UserResponse(
     UserRole Role,
     DateTime CreatedAt,
     DateTime UpdatedAt
-);
+) : IApiResponseValue;

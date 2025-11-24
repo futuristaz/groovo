@@ -5,4 +5,4 @@ public record AuthorResponse(
     string Name,
     string Bio,
     string ImageUrl
-);
+) : IApiResponseValue;

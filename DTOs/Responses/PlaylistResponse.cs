@@ -14,4 +14,4 @@ public record PlaylistResponse(
     int SongCount,
     List<SongSummaryResponse> Songs,
     List<UserSummaryResponse> Owners
-);
+) : IApiResponseValue;
