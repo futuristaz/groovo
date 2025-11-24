@@ -6,6 +6,7 @@ using Groovo.Services;
 using Groovo.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using Serilog;
 using Groovo.Services.Hub;
 
 namespace Groovo;
@@ -16,6 +17,22 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         var DefaultCorsPolicy = "_AllowAllPolicy";
+
+        var loggerConfig = new LoggerConfiguration()
+            .MinimumLevel.Debug();
+  
+        loggerConfig.WriteTo.File("logs/app.log",
+            rollingInterval: RollingInterval.Day,
+            restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Warning
+        );
+
+        if (builder.Environment.IsDevelopment())
+        {
+            loggerConfig.WriteTo.Console();
+        }
+
+        Log.Logger = loggerConfig.CreateLogger();
+        builder.Host.UseSerilog();
 
         // Add Entity Framework
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
