@@ -4,6 +4,7 @@ using Groovo.Data.Contexts;
 using Groovo.Models;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
+using Groovo.Exceptions;
 
 namespace Groovo.Services;
 
@@ -19,9 +20,9 @@ public interface IAuthService
     int AccessTokenExpiryMinutes { get; set; }
     int RefreshTokenExpiryDays { get; set; }
 
-    Task<InternalAuthResponse?> RegisterAsync(RegisterRequest request);
-    Task<InternalAuthResponse?> LoginAsync(LoginRequest request);
-    Task<InternalAuthResponse?> RefreshTokenAsync(string refreshToken);
+    Task<InternalAuthResponse> RegisterAsync(RegisterRequest request);
+    Task<InternalAuthResponse> LoginAsync(LoginRequest request);
+    Task<InternalAuthResponse> RefreshTokenAsync(string refreshToken);
     Task<bool> RevokeTokenAsync(string refreshToken);
 }
 
@@ -55,14 +56,14 @@ public class AuthService : IAuthService
         _passwordHasher = passwordHasher;
     }
 
-    public async Task<InternalAuthResponse?> RegisterAsync(RegisterRequest request)
+    public async Task<InternalAuthResponse> RegisterAsync(RegisterRequest request)
     {
         try
         {
             // Check if user already exists
             if (await _context.Users.AnyAsync(u => u.Email == request.Email))
             {
-                return null;
+                throw new UserAlreadyExistsException(request.Email);
             }
 
             // Hash password (first parameter is not used in real implementation)
@@ -106,28 +107,32 @@ public class AuthService : IAuthService
                 ExpiresAt = DateTime.UtcNow.AddMinutes(AccessTokenExpiryMinutes)
             };
         }
+        catch (UserAlreadyExistsException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during user registration for email: {Email}", request.Email);
-            return null;
+            throw;
         }
     }
 
-    public async Task<InternalAuthResponse?> LoginAsync(LoginRequest request)
+    public async Task<InternalAuthResponse> LoginAsync(LoginRequest request)
     {
         try
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
             if (user == null)
             {
-                return null; // User not found
+                throw new InvalidCredentialsException();
             }
 
             // Verify password
             var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
             if (result == PasswordVerificationResult.Failed)
             {
-                return null; // Invalid password
+                throw new InvalidCredentialsException();
             }
 
             // Generate tokens
@@ -155,14 +160,18 @@ public class AuthService : IAuthService
                 ExpiresAt = DateTime.UtcNow.AddMinutes(AccessTokenExpiryMinutes)
             };
         }
+        catch (InvalidCredentialsException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during user login for email: {Email}", request.Email);
-            return null;
+            throw;
         }
     }
 
-    public async Task<InternalAuthResponse?> RefreshTokenAsync(string refreshToken)
+    public async Task<InternalAuthResponse> RefreshTokenAsync(string refreshToken)
     {
         try
         {
@@ -177,7 +186,7 @@ public class AuthService : IAuthService
 
                 if (storedToken == null)
                 {
-                    return null; // Invalid or expired refresh token
+                    throw new InvalidRefreshTokenException();
                 }
 
                 // Generate new tokens
@@ -217,10 +226,14 @@ public class AuthService : IAuthService
                 throw;
             }
         }
+        catch (InvalidRefreshTokenException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during token refresh");
-            return null;
+            throw;
         }
     }
 
@@ -233,7 +246,7 @@ public class AuthService : IAuthService
 
             if (storedToken == null)
             {
-                return false;
+                throw new TokenRevocationException("Token not found or already revoked");
             }
 
             storedToken.IsRevoked = true;
@@ -241,10 +254,14 @@ public class AuthService : IAuthService
 
             return true;
         }
+        catch (TokenRevocationException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during token revocation");
-            return false;
+            throw new TokenRevocationException("An error occurred while revoking the token");
         }
     }
 }
