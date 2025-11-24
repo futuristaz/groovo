@@ -73,6 +73,16 @@ namespace Groovo.Services
                     return (null, $"Image file not found for upload ID: {request.ImageId}");
                 }
 
+                // Validate album exists and is an album
+                var album = await _context.Playlists
+                    .Where(p => p.Id == request.Album && p.IsAlbum)
+                    .FirstOrDefaultAsync();
+
+                if (album == null)
+                {
+                    return (null, $"Album with ID {request.Album} not found or is not an album.");
+                }
+
                 List<Guid> validatedAuthorIds = new List<Guid>();
                 if (request.AuthorIds != null && request.AuthorIds.Any())
                 {
