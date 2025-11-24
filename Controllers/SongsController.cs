@@ -169,7 +169,7 @@ namespace Groovo.Controllers
                     Genre = request.Genre,
                     Tags = string.Join(",", request.Tags),
                     AudioUrl = audioFilePath,
-                    Duration = new Models.Duration(audioDuration),
+                    Duration = new Duration(audioDuration),
                     IsActive = true
                 };
 
