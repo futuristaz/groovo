@@ -6,6 +6,7 @@ using Groovo.Services;
 using Groovo.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using Groovo.Services.Hub;
 
 namespace Groovo;
 
@@ -85,6 +86,9 @@ public class Program
         });
 
         builder.Services.AddSignalR();
+        builder.Services.AddSingleton<IUserPlaylistTracker<string, string>, UserPlaylistTracker>();
+        builder.Services.AddSingleton<IPlaybackStateStore<string, DTOs.PlaybackState>, PlaybackStateStore>();
+        builder.Services.AddScoped<IPlaylistService, PlaylistService>();
 
         var app = builder.Build();
 
