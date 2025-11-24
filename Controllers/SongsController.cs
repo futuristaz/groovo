@@ -4,7 +4,9 @@ using Groovo.Models;
 using Groovo.Data.Contexts;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
+using Groovo.Services;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace Groovo.Controllers
 {
@@ -15,11 +17,13 @@ namespace Groovo.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly ILogger<SongsController> _logger;
+        private readonly ISongFileService _songFileService;
 
-        public SongsController(ApplicationDbContext context, ILogger<SongsController> logger)
+        public SongsController(ApplicationDbContext context, ILogger<SongsController> logger, ISongFileService songFileService)
         {
             _context = context;
             _logger = logger;
+            _songFileService = songFileService;
         }
 
         /// <summary>GET: /api/v1/songs/{id}</summary>
@@ -58,20 +62,40 @@ namespace Groovo.Controllers
             }
         }
 
-        /// <summary>POST: /api/v1/songs</summary>
+        /// <summary>
+        /// POST: /api/v1/songs
+        /// Song should be created by authors and their own ID must be in AuthorIds.
+        /// </summary>
         /// <returns>201 with the created song</returns>
         [HttpPost]
-        [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<SongResponse>> Create([FromBody] CreateSongRequest request)
+        [Authorize(Roles = "Author,Admin")]
+        public async Task<ActionResult<SongResponse>> CreateSongAuthor([FromBody] CreateSongRequest request)
         {
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
 
+            if (!User.IsInRole("Admin") && (request.AuthorIds == null || !request.AuthorIds.Contains(Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)??""))))
+            {
+                return Forbid("Authors can only create songs for themselves.");
+            }
+
             try
             {
-                // Validate author IDs BEFORE creating the song
+                // Validate both audio and image IDs exist in temp storage
+                var audioExists = await _songFileService.FileExistsAsync(request.AudioId);
+                if (!audioExists)
+                {
+                    return BadRequest($"Audio file not found for upload ID: {request.AudioId}");
+                }
+
+                var imageExists = await _songFileService.FileExistsAsync(request.ImageId);
+                if (!imageExists)
+                {
+                    return BadRequest($"Image file not found for upload ID: {request.ImageId}");
+                }
+
                 List<Guid> validatedAuthorIds = new List<Guid>();
                 if (request.AuthorIds != null && request.AuthorIds.Any())
                 {
@@ -89,24 +113,67 @@ namespace Groovo.Controllers
                     validatedAuthorIds = existingAuthorIds;
                 }
 
+                // Get audio duration before moving files
+                int audioDuration;
+                try
+                {
+                    audioDuration = await _songFileService.GetAudioDurationAsync(request.AudioId);
+                    if (audioDuration <= 0)
+                    {
+                        _logger.LogWarning("Could not determine audio duration for upload ID: {AudioId}", request.AudioId);
+                        return BadRequest("Unable to determine audio file duration. The file may be corrupted or in an unsupported format.");
+                    }
+                    _logger.LogInformation("Audio duration: {Duration} seconds", audioDuration);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to read audio duration for upload ID: {AudioId}", request.AudioId);
+                    return BadRequest($"Failed to read audio file duration: {ex.Message}");
+                }
+
+                // Move files from temp to final storage
+                string audioFilePath;
+                string imageFilePath;
+
+                try
+                {
+                    audioFilePath = await _songFileService.MoveUploadedFileAsync(request.AudioId, "audio");
+                    _logger.LogInformation("Moved audio file to: {AudioPath}", audioFilePath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to move audio file for upload ID: {AudioId}", request.AudioId);
+                    return BadRequest($"Failed to process audio file: {ex.Message}");
+                }
+
+                try
+                {
+                    imageFilePath = await _songFileService.MoveUploadedFileAsync(request.ImageId, "images");
+                    _logger.LogInformation("Moved image file to: {ImagePath}", imageFilePath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to move image file for upload ID: {ImageId}", request.ImageId);
+                    return BadRequest($"Failed to process image file: {ex.Message}");
+                }
+
                 var newSong = new Song
                 {
                     Id = Guid.NewGuid(),
                     Name = request.Name,
                     Description = request.Description,
                     ReleaseDate = request.ReleaseDate,
-                    Picture = request.Picture,
+                    Picture = imageFilePath,
                     Album = request.Album,
                     Genre = request.Genre,
-                    Tags = string.Join(",", request.Tags), // Convert list to comma-separated string
-                    AudioUrl = request.AudioUrl,
-                    Duration = new Models.Duration(request.Length), // Use Duration struct
+                    Tags = string.Join(",", request.Tags),
+                    AudioUrl = audioFilePath,
+                    Duration = new Models.Duration(audioDuration),
                     IsActive = true
                 };
 
                 _context.Songs.Add(newSong);
 
-                // Add validated song-author relationships in the same transaction
                 if (validatedAuthorIds.Any())
                 {
                     var songAuthors = validatedAuthorIds.Select(authorId => new SongAuthor
@@ -118,10 +185,25 @@ namespace Groovo.Controllers
                     _context.SongAuthors.AddRange(songAuthors);
                 }
 
-                // Save everything in a single transaction
+                // Add PlaylistSong entry for the album
+                var playlistSong = new PlaylistSong
+                {
+                    PlaylistId = request.Album,
+                    SongId = newSong.Id,
+                    Order = 0, // Will be updated based on existing songs in playlist
+                    AddedAt = DateTime.UtcNow
+                };
+
+                // Get the current max order in the album and increment
+                var maxOrder = await _context.PlaylistSongs
+                    .Where(ps => ps.PlaylistId == request.Album)
+                    .MaxAsync(ps => (int?)ps.Order) ?? -1;
+                playlistSong.Order = maxOrder + 1;
+
+                _context.PlaylistSongs.Add(playlistSong);
+
                 await _context.SaveChangesAsync();
 
-                // Fetch the created song with authors for response
                 var createdSong = await _context.Songs
                     .Include(s => s.SongAuthors)
                     .ThenInclude(sa => sa.User)
@@ -150,6 +232,160 @@ namespace Groovo.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating song {SongName}", request.Name);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// PUT: /api/v1/songs/{id}
+        /// Only authors who own the song and admins can update it.
+        /// </summary>
+        /// <returns>204 if successful, 404 if not found</returns>
+        [HttpPut("{id:guid}")]
+        [Authorize(Roles = "Author,Admin")]
+        public async Task<ActionResult> UpdateSong(Guid id, [FromBody] UpdateSongRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            try
+            {
+                var existing = await _context.Songs.FirstOrDefaultAsync(s => s.Id == id && (User.IsInRole("Admin") ||
+                        s.SongAuthors.Any(sa => sa.UserId.ToString() == User.FindFirstValue(ClaimTypes.NameIdentifier))));
+                if (existing == null)
+                    return NotFound($"Song with ID {id} not found.");
+
+                if (request.Album.HasValue) {
+                    // Check if album exists, it is album and author owns it
+                    var album = await _context.Playlists
+                        .Where(p => p.Id == request.Album.Value && p.IsAlbum &&
+                            (User.IsInRole("Admin") ||
+                                p.PlaylistOwners.Any(po => po.UserId.ToString() == User.FindFirstValue(ClaimTypes.NameIdentifier))))
+                        .FirstOrDefaultAsync();
+                    if (album == null)
+                        return BadRequest("Invalid album ID or you do not have permission to assign this album.");
+                    
+                    // If album is changing, update PlaylistSong entries
+                    if (existing.Album != request.Album.Value)
+                    {
+                        // Remove from old album
+                        var oldPlaylistSong = await _context.PlaylistSongs
+                            .FirstOrDefaultAsync(ps => ps.PlaylistId == existing.Album && ps.SongId == id);
+                        if (oldPlaylistSong != null)
+                        {
+                            _context.PlaylistSongs.Remove(oldPlaylistSong);
+                        }
+
+                        // Add to new album
+                        var maxOrder = await _context.PlaylistSongs
+                            .Where(ps => ps.PlaylistId == request.Album.Value)
+                            .MaxAsync(ps => (int?)ps.Order) ?? -1;
+
+                        var newPlaylistSong = new PlaylistSong
+                        {
+                            PlaylistId = request.Album.Value,
+                            SongId = id,
+                            Order = maxOrder + 1,
+                            AddedAt = DateTime.UtcNow
+                        };
+
+                        _context.PlaylistSongs.Add(newPlaylistSong);
+                    }
+                    
+                    existing.Album = request.Album.Value;
+                }
+
+                if (request.Name != null)
+                    existing.Name = request.Name;
+                    
+                if (request.Description != null)
+                    existing.Description = request.Description;
+                    
+                if (request.Genre != null)
+                    existing.Genre = request.Genre;
+                    
+                if (request.Tags != null)
+                    existing.Tags = string.Join(",", request.Tags);
+                    
+                if (request.ReleaseDate.HasValue)
+                    existing.ReleaseDate = request.ReleaseDate.Value;
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Updated song {SongId}: {SongName}", id, existing.Name);
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating song {SongId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// DELETE: /api/v1/songs/{id}
+        /// Only authors who own the song and admins can delete it.
+        /// </summary>
+        /// <returns>204 if successful, 404 if not found</returns>
+        [HttpDelete("{id:guid}")]
+        [Authorize(Roles = "Author,Admin")]
+        public async Task<ActionResult> DeleteSong(Guid id)
+        {
+            try
+            {
+                var song = await _context.Songs
+                    .Where(s => s.Id == id && (User.IsInRole("Admin") ||
+                        s.SongAuthors.Any(sa => sa.UserId.ToString() == User.FindFirstValue(ClaimTypes.NameIdentifier))))
+                    .Include(s => s.SongAuthors)
+                    .Include(s => s.PlaylistSongs)
+                    .FirstOrDefaultAsync();
+                
+                if (song == null)
+                    return NotFound($"Song with ID {id} not found.");
+
+                if (song.SongAuthors.Any())
+                {
+                    _context.SongAuthors.RemoveRange(song.SongAuthors);
+                }
+
+                if (song.PlaylistSongs.Any())
+                {
+                    _context.PlaylistSongs.RemoveRange(song.PlaylistSongs);
+                }
+
+                _context.Songs.Remove(song);
+                
+                await _context.SaveChangesAsync();
+
+                // Delete associated files from storage
+                if (!string.IsNullOrWhiteSpace(song.AudioUrl))
+                {
+                    var audioDeleted = await _songFileService.DeleteFileAsync(song.AudioUrl);
+                    if (audioDeleted)
+                    {
+                        _logger.LogInformation("Deleted audio file: {AudioUrl}", song.AudioUrl);
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(song.Picture))
+                {
+                    var imageDeleted = await _songFileService.DeleteFileAsync(song.Picture);
+                    if (imageDeleted)
+                    {
+                        _logger.LogInformation("Deleted image file: {Picture}", song.Picture);
+                    }
+                }
+
+                _logger.LogInformation("Deleted song {SongId}: {SongName} and all related entries", id, song.Name);
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting song {SongId}", id);
                 return StatusCode(500, "Internal server error");
             }
         }

@@ -3,10 +3,12 @@ using Groovo.Data.Contexts;
 using Groovo.Data;
 using Groovo.Hubs;
 using Groovo.Services;
+using Groovo.Services.Tus;
 using Groovo.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using System.Reflection;
+using tusdotnet;
 
 namespace Groovo;
 
@@ -34,6 +36,14 @@ public class Program
         builder.Services.AddScoped<IJwtService, JwtService>();
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<IPasswordHasher<Models.User>, PasswordHasher<Models.User>>();
+        
+        // Register TUS services
+        builder.Services.AddSingleton<TusStorageConfiguration>();
+        builder.Services.AddScoped<ISongFileService, SongFileService>();
+        builder.Services.AddSingleton<TusConfigurationFactory>();
+    
+        // TUS cleanup background service
+        builder.Services.AddHostedService<TusCleanupService>();
 
         builder.Services.AddJwtAuthentication(builder.Configuration);
         builder.Services.AddAuthorization(options =>
@@ -103,6 +113,10 @@ public class Program
         // Use official Authentication and Authorization middleware
         app.UseAuthentication();
         app.UseAuthorization();
+
+        app.UseTus(context => context.RequestServices
+            .GetRequiredService<TusConfigurationFactory>()
+            .GetConfiguration());
 
         app.MapControllers();
 
