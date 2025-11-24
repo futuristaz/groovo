@@ -4,49 +4,23 @@ using Groovo.Data.Contexts;
 using Groovo.Models;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
+using Groovo.DTOs.InternalResponses;
 using Groovo.Exceptions;
 
 namespace Groovo.Services;
-
-public class InternalAuthResponse
-{
-    public string AccessToken { get; set; } = string.Empty;
-    public string RefreshToken { get; set; } = string.Empty;
-    public DateTime ExpiresAt { get; set; }
-}
-
-public interface IAuthService
-{
-    int AccessTokenExpiryMinutes { get; set; }
-    int RefreshTokenExpiryDays { get; set; }
-
-    Task<InternalAuthResponse> RegisterAsync(RegisterRequest request);
-    Task<InternalAuthResponse> LoginAsync(LoginRequest request);
-    Task<InternalAuthResponse> RefreshTokenAsync(string refreshToken);
-    Task<bool> RevokeTokenAsync(string refreshToken);
-}
 
 public class AuthService : IAuthService
 {
     private const int ACCESS_TOKEN_EXPIRY_MINUTES = 15;
     private const int REFRESH_TOKEN_EXPIRY_DAYS = 30;
 
-    private int _accessTokenExpiryMinutes = ACCESS_TOKEN_EXPIRY_MINUTES;
-    private int _refreshTokenExpiryDays = REFRESH_TOKEN_EXPIRY_DAYS;
-
-    public int AccessTokenExpiryMinutes {
-        get => _accessTokenExpiryMinutes;
-        set => _accessTokenExpiryMinutes = value > 0 ? value : ACCESS_TOKEN_EXPIRY_MINUTES;
-    }
-    public int RefreshTokenExpiryDays {
-        get => _refreshTokenExpiryDays;
-        set => _refreshTokenExpiryDays = value > 0 ? value : _refreshTokenExpiryDays;
-    }
-
     private readonly ApplicationDbContext _context;
     private readonly IJwtService _jwtService;
     private readonly ILogger<AuthService> _logger;
     private readonly IPasswordHasher<User> _passwordHasher;
+
+    private int _accessTokenExpiryMinutes = ACCESS_TOKEN_EXPIRY_MINUTES;
+    private int _refreshTokenExpiryDays = REFRESH_TOKEN_EXPIRY_DAYS;
 
     public AuthService(ApplicationDbContext context, IJwtService jwtService, ILogger<AuthService> logger, IPasswordHasher<User> passwordHasher)
     {
@@ -54,6 +28,15 @@ public class AuthService : IAuthService
         _jwtService = jwtService;
         _logger = logger;
         _passwordHasher = passwordHasher;
+    }
+
+    public int AccessTokenExpiryMinutes {
+        get => _accessTokenExpiryMinutes;
+        set => _accessTokenExpiryMinutes = value > 0 ? value : ACCESS_TOKEN_EXPIRY_MINUTES;
+    }
+    public int RefreshTokenExpiryDays {
+        get => _refreshTokenExpiryDays;
+        set => _refreshTokenExpiryDays = value > 0 ? value : REFRESH_TOKEN_EXPIRY_DAYS;
     }
 
     public async Task<InternalAuthResponse> RegisterAsync(RegisterRequest request)

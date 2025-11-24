@@ -1,4 +1,4 @@
-namespace Groovo.Models;
+namespace Groovo.DTOs;
 public readonly struct Duration : IEquatable<Duration>, IComparable<Duration>
 {
     private readonly int _totalSeconds;

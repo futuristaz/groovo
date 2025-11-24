@@ -13,7 +13,7 @@ public record SongSummaryResponse(
     int Plays,
     int Likes,
     List<string> AuthorNames
-)
+) : IApiResponseValue
 {
     // Constructor from entity
     public SongSummaryResponse(Song song, List<string> authorNames) : this(

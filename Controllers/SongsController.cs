@@ -4,6 +4,7 @@ using Groovo.Models;
 using Groovo.Data.Contexts;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
+using Groovo.DTOs;
 
 namespace Groovo.Controllers
 {
@@ -127,7 +128,7 @@ namespace Groovo.Controllers
                     Genre = request.Genre,
                     Tags = string.Join(",", request.Tags), // Convert list to comma-separated string
                     AudioUrl = request.AudioUrl,
-                    Duration = new Models.Duration(request.Length), // Use Duration struct
+                    Duration = new DTOs.Duration(request.Length), // Use Duration struct
                     IsActive = true
                 };
 
@@ -204,7 +205,7 @@ namespace Groovo.Controllers
                 existing.Genre = request.Genre;
                 existing.Tags = string.Join(",", request.Tags);
                 existing.AudioUrl = request.AudioUrl;
-                existing.Duration = new Models.Duration(request.Length);
+                existing.Duration = new DTOs.Duration(request.Length);
 
                 await _context.SaveChangesAsync();
 
