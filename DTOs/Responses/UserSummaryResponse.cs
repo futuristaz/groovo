@@ -7,4 +7,4 @@ public record UserSummaryResponse(
     string Name,
     string ImageUrl,
     UserRole Role
-);
+) : IApiResponseValue;

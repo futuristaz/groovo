@@ -9,4 +9,4 @@ public record PlaylistSummaryResponse(
     bool IsAlbum,
     int TotalTime,
     int SongCount
-);
+) : IApiResponseValue;
