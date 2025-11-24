@@ -36,10 +36,8 @@ public class AuthController : ControllerBase
         {
             var result = await _authService.RegisterAsync(request);
 
-            // Set refresh token in HTTP-only cookie
             ControlRefreshTokenCookie(result.RefreshToken);
 
-            // Remove refresh token from response body for security
             var response = new AuthResponse(
                 AccessToken: result.AccessToken,
                 ExpiresAt: result.ExpiresAt
@@ -73,7 +71,6 @@ public class AuthController : ControllerBase
         {
             var result = await _authService.LoginAsync(request);
 
-            // Set refresh token
             ControlRefreshTokenCookie(result.RefreshToken);
 
             var response = new AuthResponse(
@@ -102,7 +99,6 @@ public class AuthController : ControllerBase
     {
         try
         {
-            // Get refresh token
             var refreshToken = GetRefreshTokenFromCookie();
             if (string.IsNullOrEmpty(refreshToken))
             {
@@ -111,10 +107,8 @@ public class AuthController : ControllerBase
 
             var result = await _authService.RefreshTokenAsync(refreshToken);
 
-            // Set new refresh token
             ControlRefreshTokenCookie(result.RefreshToken);
 
-            // Remove refresh token from response body for security
             var response = new AuthResponse(
                 AccessToken: result.AccessToken,
                 ExpiresAt: result.ExpiresAt
@@ -125,7 +119,6 @@ public class AuthController : ControllerBase
         }
         catch (InvalidRefreshTokenException ex)
         {
-            // Clear invalid cookie
             ControlRefreshTokenCookie(setCookie: false);
             return Unauthorized(ex.Message);
         }
@@ -143,11 +136,9 @@ public class AuthController : ControllerBase
     {
         try
         {
-            // Get refresh token
             var refreshToken = GetRefreshTokenFromCookie();
             if (!string.IsNullOrEmpty(refreshToken))
             {
-                // Revoke the refresh token in the database
                 await _authService.RevokeTokenAsync(refreshToken);
             }
 

@@ -8,7 +8,6 @@ public class PlaylistOwnerConfiguration : IEntityTypeConfiguration<PlaylistOwner
 {
     public void Configure(EntityTypeBuilder<PlaylistOwner> builder)
     {
-        // Configure relationships
         builder.HasOne(po => po.Playlist)
                .WithMany(p => p.PlaylistOwners)
                .HasForeignKey(po => po.PlaylistId)

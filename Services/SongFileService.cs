@@ -34,7 +34,6 @@ public class SongFileService : ISongFileService
             throw new FileNotFoundException($"Temporary file not found for upload ID: {uploadId}");
         }
 
-        // Read metadata if available
         var metadataPath = $"{tempFilePath}.metadata";
         string originalFilename = uploadId;
 
@@ -43,7 +42,6 @@ public class SongFileService : ISongFileService
             try
             {
                 var metadataContent = await File.ReadAllTextAsync(metadataPath);
-                // Parse simple metadata format (key value pairs)
                 var lines = metadataContent.Split('\n');
                 foreach (var line in lines)
                 {
@@ -73,16 +71,13 @@ public class SongFileService : ISongFileService
             }
         }
 
-        // Build final filename
         var finalFilename = BuildFinalFileName(uploadId, originalFilename);
 
-        // Ensure final subfolder exists
         var finalSubfolderPath = Path.Combine(_storageConfig.FinalPath, subfolder);
         Directory.CreateDirectory(finalSubfolderPath);
 
         var finalFilePath = Path.Combine(finalSubfolderPath, finalFilename);
 
-        // Move file atomically
         try
         {
             File.Move(tempFilePath, finalFilePath, overwrite: false);
@@ -92,13 +87,11 @@ public class SongFileService : ISongFileService
                 finalFilePath
             );
 
-            // Clean up metadata file if it exists
             if (File.Exists(metadataPath))
             {
                 File.Delete(metadataPath);
             }
 
-            // Return relative path from final storage
             return Path.Combine(subfolder, finalFilename).Replace("\\", "/");
         }
         catch (IOException ex)

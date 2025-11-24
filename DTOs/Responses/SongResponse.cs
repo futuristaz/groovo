@@ -22,7 +22,6 @@ public record SongResponse(
     List<AuthorResponse> Authors
 ) : IApiResponseValue
 {
-    // Constructor from entity
     public SongResponse(Song song, List<AuthorResponse> authors) : this(
         song.Id,
         song.Name,

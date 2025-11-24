@@ -8,7 +8,6 @@ public class SongAuthorConfiguration : IEntityTypeConfiguration<SongAuthor>
 {
     public void Configure(EntityTypeBuilder<SongAuthor> builder)
     {
-        // Configure relationships
         builder.HasOne(sa => sa.Song)
                .WithMany(s => s.SongAuthors)
                .HasForeignKey(sa => sa.SongId)

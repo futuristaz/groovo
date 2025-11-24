@@ -74,7 +74,6 @@ public class TusCleanupService : BackgroundService
                             fileAge.TotalHours
                         );
 
-                        // Also delete associated metadata file if exists
                         var metadataPath = $"{filePath}.metadata";
                         if (File.Exists(metadataPath))
                         {

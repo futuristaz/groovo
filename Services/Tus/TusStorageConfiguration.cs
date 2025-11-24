@@ -10,7 +10,6 @@ public class TusStorageConfiguration
         TempPath = "./uploads/tus/temp/";
         FinalPath = "./uploads/tus/final/";
 
-        // Ensure directories exist
         Directory.CreateDirectory(TempPath);
         Directory.CreateDirectory(FinalPath);
     }

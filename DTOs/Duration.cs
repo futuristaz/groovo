@@ -3,7 +3,6 @@ public readonly struct Duration : IEquatable<Duration>, IComparable<Duration>
 {
     private readonly int _totalSeconds;
 
-    // Constructors
     public Duration(int totalSeconds)
     {
         if (totalSeconds < 0)

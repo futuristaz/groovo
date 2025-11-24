@@ -49,10 +49,8 @@ public class AuthService : IAuthService
                 throw new UserAlreadyExistsException(request.Email);
             }
 
-            // Hash password (first parameter is not used in real implementation)
             var passwordHash = _passwordHasher.HashPassword(null!, request.Password);
 
-            // Create user
             var user = new User
             {
                 Id = Guid.NewGuid(),
@@ -65,11 +63,9 @@ public class AuthService : IAuthService
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            // Generate tokens
             var accessToken = _jwtService.GenerateAccessToken(user);
             var refreshToken = _jwtService.GenerateRefreshToken();
 
-            // Store refresh token
             var refreshTokenEntity = new RefreshToken
             {
                 Id = Guid.NewGuid(),
@@ -111,18 +107,15 @@ public class AuthService : IAuthService
                 throw new InvalidCredentialsException();
             }
 
-            // Verify password
             var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
             if (result == PasswordVerificationResult.Failed)
             {
                 throw new InvalidCredentialsException();
             }
 
-            // Generate tokens
             var accessToken = _jwtService.GenerateAccessToken(user);
             var refreshToken = _jwtService.GenerateRefreshToken();
 
-            // Store refresh token
             var refreshTokenEntity = new RefreshToken
             {
                 Id = Guid.NewGuid(),
@@ -158,7 +151,6 @@ public class AuthService : IAuthService
     {
         try
         {
-            // Use a database transaction to ensure atomicity
             using var transaction = await _context.Database.BeginTransactionAsync();
             
             try
@@ -172,14 +164,11 @@ public class AuthService : IAuthService
                     throw new InvalidRefreshTokenException();
                 }
 
-                // Generate new tokens
                 var accessToken = _jwtService.GenerateAccessToken(storedToken.User);
                 var newRefreshToken = _jwtService.GenerateRefreshToken();
 
-                // Revoke old refresh token immediately
                 storedToken.IsRevoked = true;
                 
-                // Create new refresh token
                 var newRefreshTokenEntity = new RefreshToken
                 {
                     Id = Guid.NewGuid(),
@@ -192,7 +181,6 @@ public class AuthService : IAuthService
 
                 _context.RefreshTokens.Add(newRefreshTokenEntity);
                 
-                // Save both the revocation and new token in one transaction
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 

@@ -13,7 +13,6 @@ public static class DatabaseSeeder
 
         var now = DateTime.UtcNow;
 
-        // Add sample users/authors
         var users = new[]
         {
             new User
@@ -65,7 +64,6 @@ public static class DatabaseSeeder
         await context.Users.AddRangeAsync(users);
         await context.SaveChangesAsync();
 
-        // Add sample songs
         var songs = new[]
         {
             new Song
@@ -124,7 +122,6 @@ public static class DatabaseSeeder
         await context.Songs.AddRangeAsync(songs);
         await context.SaveChangesAsync();
 
-        // Add song-author relationships
         var songAuthors = new[]
         {
             new SongAuthor
@@ -147,7 +144,6 @@ public static class DatabaseSeeder
         await context.SongAuthors.AddRangeAsync(songAuthors);
         await context.SaveChangesAsync();
 
-        // Add sample playlists
         var playlists = new[]
         {
             new Playlist
@@ -177,7 +173,6 @@ public static class DatabaseSeeder
         await context.Playlists.AddRangeAsync(playlists);
         await context.SaveChangesAsync();
 
-        // Add playlist ownership relationships
         var playlistOwners = new[]
         {
             new PlaylistOwner
@@ -195,7 +190,6 @@ public static class DatabaseSeeder
         await context.PlaylistOwners.AddRangeAsync(playlistOwners);
         await context.SaveChangesAsync();
 
-        // Add playlist-song relationships
         var playlistSongs = new[]
         {
             new PlaylistSong

@@ -32,7 +32,7 @@ public static class MiddlewareExtensions
                     {
                         var accessToken = context.Request.Query["access_token"];
 
-                        // If the request is for our hub...
+                        // If the request is for hub
                         var path = context.HttpContext.Request.Path;
                         if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/live"))
                         {
