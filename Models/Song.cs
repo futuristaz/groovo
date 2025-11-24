@@ -40,10 +40,8 @@ public class Song
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     
-    // Store duration in seconds for database
-    public int Length { get; set; }
+    public int Length { get; set; } // In seconds
     
-    // Duration as a struct
     [NotMapped]
     public Duration Duration 
     { 

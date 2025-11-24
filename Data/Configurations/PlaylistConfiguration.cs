@@ -8,7 +8,6 @@ public class PlaylistConfiguration : IEntityTypeConfiguration<Playlist>
 {
     public void Configure(EntityTypeBuilder<Playlist> builder)
     {
-        // Configure default values
         builder.Property(p => p.IsActive)
             .HasDefaultValue(false);
             
@@ -18,7 +17,6 @@ public class PlaylistConfiguration : IEntityTypeConfiguration<Playlist>
         builder.Property(p => p.IsAlbum)
             .HasDefaultValue(false);
 
-        // Configure timestamp properties for SQLite compatibility
         builder.Property(p => p.CreatedAt)
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
             

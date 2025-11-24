@@ -37,13 +37,11 @@ public class Program
         Log.Logger = loggerConfig.CreateLogger();
         builder.Host.UseSerilog();
 
-        // Add Entity Framework
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
         {
             //options.UseInMemoryDatabase("GroovoInMemoryDb");
             options.UseSqlite("Data Source=development.sqlite");
 
-            // Enable detailed error messages in development
             if (builder.Environment.IsDevelopment())
             {
                 options.EnableSensitiveDataLogging();
@@ -64,8 +62,6 @@ public class Program
         builder.Services.AddSingleton<TusStorageConfiguration>();
         builder.Services.AddScoped<ISongFileService, SongFileService>();
         builder.Services.AddSingleton<TusConfigurationFactory>();
-    
-        // TUS cleanup background service
         builder.Services.AddHostedService<TusCleanupService>();
 
         builder.Services.AddJwtAuthentication(builder.Configuration);
@@ -128,7 +124,6 @@ public class Program
 
         var app = builder.Build();
 
-        // Ensure database is created and seed development data
         using (var scope = app.Services.CreateScope())
         {
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -142,7 +137,6 @@ public class Program
             }
             else
             {
-                // For production, just ensure database exists
                 await context.Database.EnsureCreatedAsync();
             }
         }
@@ -154,7 +148,6 @@ public class Program
             app.UseCors(DefaultCorsPolicy);
         }
 
-        // Use official Authentication and Authorization middleware
         app.UseAuthentication();
         app.UseAuthorization();
 

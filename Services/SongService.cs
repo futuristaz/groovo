@@ -54,13 +54,11 @@ namespace Groovo.Services
         {
             try
             {
-                // Validate author permissions
                 if (!isAdmin && (request.AuthorIds == null || !request.AuthorIds.Contains(authorId ?? Guid.Empty)))
                 {
                     return (null, "Authors can only create songs for themselves.");
                 }
 
-                // Validate both audio and image IDs exist in temp storage
                 var audioExists = await _songFileService.FileExistsAsync(request.AudioId);
                 if (!audioExists)
                 {
@@ -73,7 +71,6 @@ namespace Groovo.Services
                     return (null, $"Image file not found for upload ID: {request.ImageId}");
                 }
 
-                // Validate album exists and is an album
                 var album = await _context.Playlists
                     .Where(p => p.Id == request.Album && p.IsAlbum)
                     .FirstOrDefaultAsync();
@@ -100,7 +97,6 @@ namespace Groovo.Services
                     validatedAuthorIds = existingAuthorIds;
                 }
 
-                // Get audio duration before moving files
                 int audioDuration;
                 try
                 {
@@ -118,7 +114,6 @@ namespace Groovo.Services
                     return (null, $"Failed to read audio file duration: {ex.Message}");
                 }
 
-                // Move files from temp to final storage
                 string audioFilePath;
                 string imageFilePath;
 
@@ -172,7 +167,6 @@ namespace Groovo.Services
                     _context.SongAuthors.AddRange(songAuthors);
                 }
 
-                // Add PlaylistSong entry for the album
                 var playlistSong = new PlaylistSong
                 {
                     PlaylistId = request.Album,
@@ -247,10 +241,8 @@ namespace Groovo.Services
                     if (album == null)
                         return (false, "Invalid album ID or you do not have permission to assign this album.");
 
-                    // If album is changing, update PlaylistSong entries
                     if (existing.Album != request.Album.Value)
                     {
-                        // Remove from old album
                         var oldPlaylistSong = await _context.PlaylistSongs
                             .FirstOrDefaultAsync(ps => ps.PlaylistId == existing.Album && ps.SongId == id);
                         if (oldPlaylistSong != null)
@@ -258,7 +250,7 @@ namespace Groovo.Services
                             _context.PlaylistSongs.Remove(oldPlaylistSong);
                         }
 
-                        // Add to new album
+
                         var maxOrder = await _context.PlaylistSongs
                             .Where(ps => ps.PlaylistId == request.Album.Value)
                             .MaxAsync(ps => (int?)ps.Order) ?? -1;

@@ -3,8 +3,6 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Groovo.DTOs.Requests
 {
-
-    // Request to remove a song from a playlist
     public class RemoveSongRequest
     {
         [Required]

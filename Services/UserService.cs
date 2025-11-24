@@ -111,19 +111,16 @@ namespace Groovo.Services
                 if (user == null)
                     return false;
 
-                // Remove all related SongAuthor entries
                 if (user.SongAuthors.Any())
                 {
                     _context.SongAuthors.RemoveRange(user.SongAuthors);
                 }
 
-                // Remove all related PlaylistOwner entries
                 if (user.PlaylistOwners.Any())
                 {
                     _context.PlaylistOwners.RemoveRange(user.PlaylistOwners);
                 }
 
-                // Remove the user itself
                 _context.Users.Remove(user);
 
                 await _context.SaveChangesAsync();

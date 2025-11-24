@@ -54,7 +54,6 @@ public sealed class ApplicationDbContext : DbContext
         {
             var entityType = entry.Entity.GetType();
             
-            // Handle entities with CreatedAt and UpdatedAt properties
             if (entityType.GetProperty("CreatedAt") != null && 
                 entityType.GetProperty("UpdatedAt") != null)
             {
@@ -65,7 +64,6 @@ public sealed class ApplicationDbContext : DbContext
                 entry.Property("UpdatedAt").CurrentValue = DateTime.UtcNow;
             }
             
-            // Handle PlaylistSong with AddedAt property
             if (entry.Entity is PlaylistSong && entry.State == EntityState.Added)
             {
                 entry.Property("AddedAt").CurrentValue = DateTime.UtcNow;

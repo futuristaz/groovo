@@ -112,7 +112,6 @@ namespace Groovo.Services
         {
             try
             {
-                // Validate role-based permissions
                 if (userRole != "Admin")
                 {
                     if (userRole == "Author" && !request.IsAlbum)
@@ -125,7 +124,6 @@ namespace Groovo.Services
                     }
                 }
 
-                // Validate owner IDs
                 List<Guid> validatedOwnerIds = new List<Guid>();
                 if (request.OwnerIds != null && request.OwnerIds.Any())
                 {
