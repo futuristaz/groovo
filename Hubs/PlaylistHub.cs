@@ -155,7 +155,14 @@ public class PlaylistHub : Hub
         {
             var state = _playbackStateStore.TryUpdate(playlistId, ps =>
             {
-                if (ps.IsPlaying != status) {
+                if (ps.IsPlaying != status)
+                {
+                    if (ps.IsPlaying)
+                    {
+                        var timeSinceUpdate = (DateTime.UtcNow - ps.LastUpdated).TotalSeconds;
+                        ps.CurrentPosition = Math.Min(ps.CurrentPosition + (int)timeSinceUpdate, ps.CurrentLength);
+                    }
+                    
                     ps.IsPlaying = status;
                     ps.LastUpdated = DateTime.UtcNow;
                 }
@@ -278,6 +285,13 @@ public class PlaylistHub : Hub
         try
         {
             var state = _playbackStateStore.GetOrCreate(playlistId);
+            
+            if (state.IsPlaying)
+            {
+                var timeSinceUpdate = (DateTime.UtcNow - state.LastUpdated).TotalSeconds;
+                state.CurrentPosition = Math.Min(state.CurrentPosition + (int)timeSinceUpdate, state.CurrentLength);
+            }
+
             await Clients.Caller.SendAsync("PlaybackState", state);
         }
         catch (HubException) { throw; }

@@ -63,4 +63,9 @@ public class PlaybackStateStore : IPlaybackStateStore<string, PlaybackState>
             }
         ));
     }
+
+    public IEnumerable<KeyValuePair<string, PlaybackState>> GetAllActiveStates()
+    {
+        return _states.Where(kvp => kvp.Value.CurrentlyListening > 0);
+    }
 }

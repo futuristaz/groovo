@@ -9,16 +9,13 @@ namespace Groovo.Services.Tus;
 public class TusConfigurationFactory
 {
     private const string TusEndpoint = "/files";
-    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TusConfigurationFactory> _logger;
     private readonly TusStorageConfiguration _storageConfig;
 
     public TusConfigurationFactory(
-        IServiceProvider serviceProvider, 
         ILogger<TusConfigurationFactory> logger,
         TusStorageConfiguration storageConfig)
     {
-        _serviceProvider = serviceProvider;
         _logger = logger;
         _storageConfig = storageConfig;
     }

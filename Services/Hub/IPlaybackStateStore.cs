@@ -8,4 +8,5 @@ public interface IPlaybackStateStore<T1, T2>
     void TryRemove(T1 playlistId);
     Task IncrementUsers(T1 playlistId);
     Task DecrementUsers(T1 playlistId);
+    IEnumerable<KeyValuePair<T1, T2>> GetAllActiveStates();
 }
