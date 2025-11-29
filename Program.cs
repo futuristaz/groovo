@@ -155,6 +155,16 @@ public class Program
             .GetRequiredService<TusConfigurationFactory>()
             .GetConfiguration());
 
+        var storageConfig = app.Services.GetRequiredService<TusStorageConfiguration>();
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+                Path.Combine(Directory.GetCurrentDirectory(), storageConfig.FinalPath)),
+            RequestPath = "/contents",
+            ServeUnknownFileTypes = true,
+            DefaultContentType = "application/octet-stream"
+        });
+
         app.MapControllers();
 
         app.MapHub<PlaylistHub>("/live");

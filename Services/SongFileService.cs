@@ -14,7 +14,7 @@ public class SongFileService : ISongFileService
         _storageConfig = storageConfig;
     }
 
-    public async Task<string> MoveUploadedFileAsync(string uploadId, string subfolder)
+    public async Task<string> MoveUploadedFileAsync(string uploadId, string subfolder, string targetFilename)
     {
         if (string.IsNullOrWhiteSpace(uploadId))
         {
@@ -24,6 +24,11 @@ public class SongFileService : ISongFileService
         if (string.IsNullOrWhiteSpace(subfolder))
         {
             throw new ArgumentException("Subfolder cannot be empty", nameof(subfolder));
+        }
+
+        if (string.IsNullOrWhiteSpace(targetFilename))
+        {
+            throw new ArgumentException("Target filename cannot be empty", nameof(targetFilename));
         }
 
         // Validate temp file exists
@@ -71,7 +76,7 @@ public class SongFileService : ISongFileService
             }
         }
 
-        var finalFilename = BuildFinalFileName(uploadId, originalFilename);
+        var finalFilename = BuildFinalFileName(targetFilename, originalFilename);
 
         var finalSubfolderPath = Path.Combine(_storageConfig.FinalPath, subfolder);
         Directory.CreateDirectory(finalSubfolderPath);
@@ -112,7 +117,7 @@ public class SongFileService : ISongFileService
         return Task.FromResult(File.Exists(tempFilePath));
     }
 
-    public string BuildFinalFileName(string uploadId, string originalName)
+    public string BuildFinalFileName(string targetFilename, string originalName)
     {
         var extension = Path.GetExtension(originalName);
         if (string.IsNullOrWhiteSpace(extension))
@@ -120,8 +125,7 @@ public class SongFileService : ISongFileService
             extension = "";
         }
 
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        return $"{uploadId}_{timestamp}{extension}";
+        return $"{targetFilename}"; //{targetFilename}{extension}
     }
 
     public Task<int> GetAudioDurationAsync(string uploadId)

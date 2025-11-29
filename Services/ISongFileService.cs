@@ -7,8 +7,9 @@ public interface ISongFileService
     /// </summary>
     /// <param name="uploadId">The tus upload ID</param>
     /// <param name="subfolder">Subfolder in final storage (e.g., "audio" or "images")</param>
+    /// <param name="targetFilename">Target filename (without extension) - typically the song UUID</param>
     /// <returns>The final file path relative to final storage</returns>
-    Task<string> MoveUploadedFileAsync(string uploadId, string subfolder);
+    Task<string> MoveUploadedFileAsync(string uploadId, string subfolder, string targetFilename);
 
     /// <summary>
     /// Checks if a file exists in temporary storage
@@ -18,12 +19,12 @@ public interface ISongFileService
     Task<bool> FileExistsAsync(string uploadId);
 
     /// <summary>
-    /// Builds a final filename based on the upload ID and original name
+    /// Builds a final filename based on target filename and original extension
     /// </summary>
-    /// <param name="uploadId">The tus upload ID</param>
-    /// <param name="originalName">Original filename from metadata</param>
+    /// <param name="targetFilename">Target filename (without extension)</param>
+    /// <param name="originalName">Original filename from metadata to extract extension</param>
     /// <returns>A unique filename</returns>
-    string BuildFinalFileName(string uploadId, string originalName);
+    string BuildFinalFileName(string targetFilename, string originalName);
 
     /// <summary>
     /// Gets the duration of an audio file in seconds from temporary storage
