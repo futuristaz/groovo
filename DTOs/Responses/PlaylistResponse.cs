@@ -12,6 +12,5 @@ public record PlaylistResponse(
     DateTime UpdatedAt,
     int TotalTime,
     int SongCount,
-    List<SongSummaryResponse> Songs,
     List<UserSummaryResponse> Owners
 ) : IApiResponseValue;
