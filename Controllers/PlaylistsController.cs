@@ -46,6 +46,7 @@ namespace Groovo.Controllers
         /// <summary>
         /// GET: /api/v1/playlists/{id}
         /// Only owners or admins can view non-public playlists
+        /// TODO: Authors can view only their own playlists (albums)
         /// </summary>
         /// <returns>Specific playlist with owners or 404 if not found</returns>
         [HttpGet("{id:guid}")]
@@ -186,6 +187,7 @@ namespace Groovo.Controllers
         /// <summary>
         /// GET: /api/v1/playlists/{id}/songs
         /// Only owners or admins can view songs in non-public playlists
+        /// TODO: Authors can view only their own playlists (albums)
         /// </summary>
         /// <returns>List of songs in the playlist</returns>
         [HttpGet("{id:guid}/songs")]
