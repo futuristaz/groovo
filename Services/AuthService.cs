@@ -6,6 +6,7 @@ using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
 using Groovo.DTOs.InternalResponses;
 using Groovo.Exceptions;
+using Microsoft.AspNetCore.Http;
 
 namespace Groovo.Services;
 
@@ -18,16 +19,18 @@ public class AuthService : IAuthService
     private readonly IJwtService _jwtService;
     private readonly ILogger<AuthService> _logger;
     private readonly IPasswordHasher<User> _passwordHasher;
+    private readonly IWebHostEnvironment _environment;
 
     private int _accessTokenExpiryMinutes = ACCESS_TOKEN_EXPIRY_MINUTES;
     private int _refreshTokenExpiryDays = REFRESH_TOKEN_EXPIRY_DAYS;
 
-    public AuthService(ApplicationDbContext context, IJwtService jwtService, ILogger<AuthService> logger, IPasswordHasher<User> passwordHasher)
+    public AuthService(ApplicationDbContext context, IJwtService jwtService, ILogger<AuthService> logger, IPasswordHasher<User> passwordHasher, IWebHostEnvironment environment)
     {
         _context = context;
         _jwtService = jwtService;
         _logger = logger;
         _passwordHasher = passwordHasher;
+        _environment = environment;
     }
 
     public int AccessTokenExpiryMinutes {
@@ -234,5 +237,29 @@ public class AuthService : IAuthService
             _logger.LogError(ex, "Error during token revocation");
             throw new TokenRevocationException("An error occurred while revoking the token");
         }
+    }
+
+    public void SetRefreshTokenCookie(HttpResponse response, string refreshToken, DateTime? expires = null)
+    {
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = !_environment.IsDevelopment(),
+            SameSite = SameSiteMode.Strict,
+            Expires = expires ?? DateTime.UtcNow.AddDays(RefreshTokenExpiryDays),
+            Path = "/api/v1/auth"
+        };
+
+        response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
+    }
+
+    public void ClearRefreshTokenCookie(HttpResponse response)
+    {
+        response.Cookies.Delete("refreshToken");
+    }
+
+    public string? GetRefreshTokenFromCookie(HttpRequest request)
+    {
+        return request.Cookies["refreshToken"];
     }
 }
