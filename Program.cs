@@ -128,12 +128,21 @@ public class Program
         {
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-            // For development, recreate database with fresh seed data
+            // For development, recreate database with fresh seed data only if --reset-db flag is passed
             if (app.Environment.IsDevelopment())
             {
-                await context.Database.EnsureDeletedAsync();
-                await context.Database.EnsureCreatedAsync();
-                await DatabaseSeeder.SeedAsync(context);
+                var resetDb = args.Contains("--reset-db", StringComparer.OrdinalIgnoreCase);
+                
+                if (resetDb)
+                {
+                    await context.Database.EnsureDeletedAsync();
+                    await context.Database.EnsureCreatedAsync();
+                    await DatabaseSeeder.SeedAsync(context);
+                }
+                else
+                {
+                    await context.Database.EnsureCreatedAsync();
+                }
             }
             else
             {
