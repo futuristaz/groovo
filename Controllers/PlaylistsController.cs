@@ -46,10 +46,11 @@ namespace Groovo.Controllers
         /// <summary>
         /// GET: /api/v1/playlists/{id}
         /// Only owners or admins can view non-public playlists
+        /// TODO: Authors can view only their own playlists (albums)
         /// </summary>
-        /// <returns>Specific playlist with songs and owners or 404 if not found</returns>
+        /// <returns>Specific playlist with owners or 404 if not found</returns>
         [HttpGet("{id:guid}")]
-        [Authorize(Roles = "User,Admin")]
+        [Authorize(Roles = "User,Author,Admin")]
         public async Task<ActionResult<PlaylistResponse>> GetById(Guid id)
         {
             try
@@ -186,10 +187,11 @@ namespace Groovo.Controllers
         /// <summary>
         /// GET: /api/v1/playlists/{id}/songs
         /// Only owners or admins can view songs in non-public playlists
+        /// TODO: Authors can view only their own playlists (albums)
         /// </summary>
         /// <returns>List of songs in the playlist</returns>
         [HttpGet("{id:guid}/songs")]
-        [Authorize(Roles = "User,Admin")]
+        [Authorize(Roles = "User,Author,Admin")]
         public async Task<ActionResult<IEnumerable<SongSummaryResponse>>> GetSongsInPlaylist(Guid id)
         {
             try

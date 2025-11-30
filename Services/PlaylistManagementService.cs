@@ -55,9 +55,6 @@ namespace Groovo.Services
             {
                 var query = _context.Playlists
                     .Include(p => p.PlaylistSongs)
-                    .ThenInclude(ps => ps.Song)
-                    .ThenInclude(s => s.SongAuthors)
-                    .ThenInclude(sa => sa.User)
                     .Include(p => p.PlaylistOwners)
                     .ThenInclude(po => po.User)
                     .Where(p => p.Id == id);
@@ -88,11 +85,6 @@ namespace Groovo.Services
                     playlist.UpdatedAt,
                     playlist.TotalTime,
                     playlist.PlaylistSongs?.Count ?? 0,
-                    playlist.PlaylistSongs?.Select(ps => new SongSummaryResponse(
-                        ps.Song,
-                        ps.Song.SongAuthors?.Where(sa => sa.User.Role == UserRole.Author)
-                            .Select(sa => sa.User.Name).ToList() ?? new List<string>()
-                    )).ToList() ?? new List<SongSummaryResponse>(),
                     playlist.PlaylistOwners?.Select(po => new UserSummaryResponse(
                         po.User.Id,
                         po.User.Name,
@@ -191,7 +183,6 @@ namespace Groovo.Services
                     createdPlaylist.UpdatedAt,
                     createdPlaylist.TotalTime,
                     0,
-                    new List<SongSummaryResponse>(),
                     createdPlaylist.PlaylistOwners?.Select(po => new UserSummaryResponse(
                         po.User.Id,
                         po.User.Name,
