@@ -3,6 +3,8 @@ using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
 using Groovo.Services;
 using Groovo.Exceptions;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace Groovo.Controllers;
 
@@ -12,14 +14,14 @@ namespace Groovo.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IUserService _userService;
     private readonly ILogger<AuthController> _logger;
-    private readonly IWebHostEnvironment _environment;
 
-    public AuthController(IAuthService authService, ILogger<AuthController> logger, IWebHostEnvironment environment)
+    public AuthController(IAuthService authService, IUserService userService, ILogger<AuthController> logger)
     {
         _authService = authService;
+        _userService = userService;
         _logger = logger;
-        _environment = environment;
     }
 
     /// <summary>POST: /api/v1/auth/register</summary>
@@ -36,7 +38,7 @@ public class AuthController : ControllerBase
         {
             var result = await _authService.RegisterAsync(request);
 
-            ControlRefreshTokenCookie(result.RefreshToken);
+            _authService.SetRefreshTokenCookie(Response, result.RefreshToken);
 
             var response = new AuthResponse(
                 AccessToken: result.AccessToken,
@@ -71,7 +73,7 @@ public class AuthController : ControllerBase
         {
             var result = await _authService.LoginAsync(request);
 
-            ControlRefreshTokenCookie(result.RefreshToken);
+            _authService.SetRefreshTokenCookie(Response, result.RefreshToken);
 
             var response = new AuthResponse(
                 AccessToken: result.AccessToken,
@@ -99,7 +101,7 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var refreshToken = GetRefreshTokenFromCookie();
+            var refreshToken = _authService.GetRefreshTokenFromCookie(Request);
             if (string.IsNullOrEmpty(refreshToken))
             {
                 return Unauthorized("Refresh token not found");
@@ -107,7 +109,7 @@ public class AuthController : ControllerBase
 
             var result = await _authService.RefreshTokenAsync(refreshToken);
 
-            ControlRefreshTokenCookie(result.RefreshToken);
+            _authService.SetRefreshTokenCookie(Response, result.RefreshToken);
 
             var response = new AuthResponse(
                 AccessToken: result.AccessToken,
@@ -119,7 +121,7 @@ public class AuthController : ControllerBase
         }
         catch (InvalidRefreshTokenException ex)
         {
-            ControlRefreshTokenCookie(setCookie: false);
+            _authService.ClearRefreshTokenCookie(Response);
             return Unauthorized(ex.Message);
         }
         catch (Exception ex)
@@ -136,13 +138,13 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var refreshToken = GetRefreshTokenFromCookie();
+            var refreshToken = _authService.GetRefreshTokenFromCookie(Request);
             if (!string.IsNullOrEmpty(refreshToken))
             {
                 await _authService.RevokeTokenAsync(refreshToken);
             }
 
-            ControlRefreshTokenCookie(setCookie: false);
+            _authService.ClearRefreshTokenCookie(Response);
 
             _logger.LogInformation("User logged out successfully");
             return Ok("Logged out successfully");
@@ -150,7 +152,7 @@ public class AuthController : ControllerBase
         catch (TokenRevocationException)
         {
             // Still clear the cookie even if revocation failed
-            ControlRefreshTokenCookie(setCookie: false);
+            _authService.ClearRefreshTokenCookie(Response);
             return Ok("Logged out successfully");
         }
         catch (Exception ex)
@@ -160,29 +162,35 @@ public class AuthController : ControllerBase
         }
     }
 
-    private void ControlRefreshTokenCookie(string refreshToken = "", DateTime? expires = null, bool setCookie = true)
+    /// <summary>GET: /api/v1/auth/me</summary>
+    /// <returns>200 with current user information or 401 if not authenticated</returns>
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<ActionResult<UserResponse>> GetCurrentUser()
     {
-        if (setCookie)
+        try
         {
-            var cookieOptions = new CookieOptions
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
             {
-                HttpOnly = true,
-                Secure = !_environment.IsDevelopment(),
-                SameSite = SameSiteMode.Strict,
-                Expires = expires ?? DateTime.UtcNow.AddDays(_authService.RefreshTokenExpiryDays),
-                Path = "/api/v1/auth"
-            };
+                return Unauthorized("Invalid user token");
+            }
 
-            Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
+            var user = await _userService.GetUserByIdAsync(userId);
+            
+            if (user == null)
+            {
+                return NotFound("User not found");
+            }
+
+            _logger.LogInformation("Retrieved current user information: {UserId}", userId);
+            return Ok(user);
         }
-        else
+        catch (Exception ex)
         {
-            Response.Cookies.Delete("refreshToken");
+            _logger.LogError(ex, "Error retrieving current user information");
+            return StatusCode(500, "Internal server error");
         }
-    }
-
-    private string? GetRefreshTokenFromCookie()
-    {
-        return Request.Cookies["refreshToken"];
     }
 }
