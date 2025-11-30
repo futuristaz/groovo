@@ -121,6 +121,7 @@ public class Program
         builder.Services.AddSingleton<IUserPlaylistTracker<string, string>, UserPlaylistTracker>();
         builder.Services.AddSingleton<IPlaybackStateStore<string, DTOs.PlaybackState>, PlaybackStateStore>();
         builder.Services.AddScoped<IPlaylistService, PlaylistService>();
+        builder.Services.AddHostedService<PlaybackUpdateService>();
 
         var app = builder.Build();
 
@@ -154,6 +155,16 @@ public class Program
         app.UseTus(context => context.RequestServices
             .GetRequiredService<TusConfigurationFactory>()
             .GetConfiguration());
+
+        var storageConfig = app.Services.GetRequiredService<TusStorageConfiguration>();
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+                Path.Combine(Directory.GetCurrentDirectory(), storageConfig.FinalPath)),
+            RequestPath = "/contents",
+            ServeUnknownFileTypes = true,
+            DefaultContentType = "application/octet-stream"
+        });
 
         app.MapControllers();
 

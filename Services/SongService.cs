@@ -116,10 +116,11 @@ namespace Groovo.Services
 
                 string audioFilePath;
                 string imageFilePath;
+                var songId = Guid.NewGuid();
 
                 try
                 {
-                    audioFilePath = await _songFileService.MoveUploadedFileAsync(request.AudioId, "audio");
+                    audioFilePath = await _songFileService.MoveUploadedFileAsync(request.AudioId, "audio", songId.ToString());
                     _logger.LogInformation("Moved audio file to: {AudioPath}", audioFilePath);
                 }
                 catch (Exception ex)
@@ -130,7 +131,7 @@ namespace Groovo.Services
 
                 try
                 {
-                    imageFilePath = await _songFileService.MoveUploadedFileAsync(request.ImageId, "images");
+                    imageFilePath = await _songFileService.MoveUploadedFileAsync(request.ImageId, "images", songId.ToString());
                     _logger.LogInformation("Moved image file to: {ImagePath}", imageFilePath);
                 }
                 catch (Exception ex)
@@ -141,7 +142,7 @@ namespace Groovo.Services
 
                 var newSong = new Song
                 {
-                    Id = Guid.NewGuid(),
+                    Id = songId,
                     Name = request.Name,
                     Description = request.Description,
                     ReleaseDate = request.ReleaseDate,
