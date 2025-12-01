@@ -14,6 +14,12 @@
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <CoverletOutput>TestResults/</CoverletOutput>
+    <CollectCoverage>true</CollectCoverage>
+    <ExcludeByFile>../Models/**,../DTOs/**</ExcludeByFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
