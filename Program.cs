@@ -90,7 +90,8 @@ public class Program
                         policy.WithOrigins(allowedOrigins)
                             .AllowAnyMethod()
                             .AllowAnyHeader()
-                            .AllowCredentials();
+                            .AllowCredentials()
+                            .WithExposedHeaders("Tus-Resumable", "Upload-Offset", "Upload-Length", "Location", "Upload-Metadata");
                     }
                 });
         });

@@ -80,6 +80,13 @@ namespace Groovo.Services
                     return (null, $"Album with ID {request.Album} not found or is not an album.");
                 }
 
+                var duplicateSong = await _context.Songs
+                    .AnyAsync(s => s.Name == request.Name && s.Album == request.Album);
+                if (duplicateSong)
+                {
+                    return (null, $"A song with the name '{request.Name}' already exists in this album.");
+                }
+
                 List<Guid> validatedAuthorIds = new List<Guid>();
                 if (request.AuthorIds != null && request.AuthorIds.Any())
                 {
