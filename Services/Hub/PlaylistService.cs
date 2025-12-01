@@ -34,10 +34,10 @@ public class PlaylistService : IPlaylistService
     {
         var currentSongOrder = await _dbContext.PlaylistSongs
             .Where(ps => ps.PlaylistId == playlistId && ps.SongId == currentSongId && ps.Song.IsActive)
-            .Select(ps => ps.Order)
+            .Select(ps => (int?)ps.Order)
             .FirstOrDefaultAsync();
 
-        if (currentSongOrder == 0)
+        if (currentSongOrder == null)
         {
             return null;
         }
