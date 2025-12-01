@@ -199,7 +199,7 @@ namespace Groovo.Controllers
         {
             if (User.IsInRole("Author") && User.FindFirstValue(ClaimTypes.NameIdentifier) != id.ToString())
             {
-                return Forbid("Authors can only access their own playlists.");
+                return StatusCode(StatusCodes.Status403Forbidden, "Authors can only access their own playlists.");
             }
 
             try

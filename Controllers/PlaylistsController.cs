@@ -98,7 +98,7 @@ namespace Groovo.Controllers
                 if (playlistResponse == null)
                 {
                     if (errorMessage?.Contains("can only create") == true || errorMessage?.Contains("cannot create") == true)
-                        return Forbid(errorMessage);
+                        return StatusCode(StatusCodes.Status403Forbidden, errorMessage);
                     return BadRequest(errorMessage);
                 }
 
