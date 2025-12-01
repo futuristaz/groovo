@@ -37,17 +37,21 @@ public class Program
         Log.Logger = loggerConfig.CreateLogger();
         builder.Host.UseSerilog();
 
-        builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        // Only configure database for non-testing environments
+        if (!builder.Environment.IsEnvironment("Testing"))
         {
-            //options.UseInMemoryDatabase("GroovoInMemoryDb");
-            options.UseSqlite("Data Source=development.sqlite");
-
-            if (builder.Environment.IsDevelopment())
+            builder.Services.AddDbContext<ApplicationDbContext>(options =>
             {
-                options.EnableSensitiveDataLogging();
-                options.EnableDetailedErrors();
-            }
-        });
+                //options.UseInMemoryDatabase("GroovoInMemoryDb");
+                options.UseSqlite("Data Source=development.sqlite");
+
+                if (builder.Environment.IsDevelopment())
+                {
+                    options.EnableSensitiveDataLogging();
+                    options.EnableDetailedErrors();
+                }
+            });
+        }
 
         // Register services
         builder.Services.AddScoped<IJwtService, JwtService>();
