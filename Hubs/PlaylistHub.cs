@@ -218,7 +218,7 @@ public class PlaylistHub : Hub
                 return ps;
             });
 
-            await Clients.Group($"playlist_{playlistId}").SendAsync("PlaybackState", newState.CurrentSongId);
+            await Clients.Group($"playlist_{playlistId}").SendAsync("PlaybackState", newState);
         }
         catch (HubException) { throw; }
         catch (Exception ex)
