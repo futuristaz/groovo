@@ -133,12 +133,16 @@ public class Program
             if (app.Environment.IsDevelopment())
             {
                 var resetDb = args.Contains("--reset-db", StringComparer.OrdinalIgnoreCase);
-                
+                var enableSeeding = args.Contains("--seed-db", StringComparer.OrdinalIgnoreCase);
+
                 if (resetDb)
                 {
                     await context.Database.EnsureDeletedAsync();
                     await context.Database.EnsureCreatedAsync();
-                    await DatabaseSeeder.SeedAsync(context);
+                    if (enableSeeding)
+                    {
+                        await DatabaseSeeder.SeedAsync(context);
+                    }
                 }
                 else
                 {
