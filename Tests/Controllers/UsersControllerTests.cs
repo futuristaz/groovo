@@ -1,278 +1,496 @@
-using Xunit;
-using Moq;
-using Microsoft.Extensions.Logging;
-using Groovo.Controllers;
-using Groovo.Services;
-using Groovo.Models;
-using Groovo.DTOs.Responses;
-using Groovo.DTOs.Requests;
-using Microsoft.AspNetCore.Mvc;
-using System;
-using System.Collections.Generic;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Security.Claims;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
+using Xunit;
+using Groovo.DTOs;
+using Groovo.DTOs.Requests;
+using Groovo.DTOs.Responses;
+using Groovo.Models;
+using System.IdentityModel.Tokens.Jwt;
+using Groovo.Tests.Factories;
+using Microsoft.Extensions.DependencyInjection;
+using Groovo.Data.Contexts;
 
 namespace Groovo.Tests.Controllers;
 
-public class UsersControllerTests
+public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly Mock<IUserService> _userServiceMock;
-    private readonly Mock<ILogger<UsersController>> _loggerMock;
-    private readonly UsersController _controller;
+    private readonly CustomWebApplicationFactory _factory;
+    private readonly HttpClient _client;
 
-    public UsersControllerTests()
+    public UsersControllerTests(CustomWebApplicationFactory factory)
     {
-        _userServiceMock = new Mock<IUserService>();
-        _loggerMock = new Mock<ILogger<UsersController>>();
-        _controller = new UsersController(_userServiceMock.Object, _loggerMock.Object);
+        _factory = factory;
+        _client = _factory.CreateClient();
+        
+        // Reset authorization header between tests
+        _client.DefaultRequestHeaders.Authorization = null;
     }
 
-    // ─────────────────────────────────────────────
-    // GET /users
-    // ─────────────────────────────────────────────
-    [Fact]
-    public async Task GetAll_ReturnsOkWithUsers()
-    {
-        // Arrange
-        var users = new List<UserSummaryResponse>
-        {
-            new UserSummaryResponse(Guid.NewGuid(), "John", "john@example.com", UserRole.Author),
-            new UserSummaryResponse(Guid.NewGuid(), "Paul", "paul@example.com", UserRole.Author)
-        };
-        _userServiceMock.Setup(s => s.GetAllUsersAsync(null))
-                        .ReturnsAsync(users);
+    #region Helper Methods
 
+    private string GenerateJwtToken(Guid userId, string role)
+    {
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+            new Claim(ClaimTypes.Role, role)
+        };
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(CustomWebApplicationFactory.JwtSecret));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var token = new JwtSecurityToken(
+            issuer: CustomWebApplicationFactory.JwtIssuer,
+            audience: CustomWebApplicationFactory.JwtAudience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(1),
+            signingCredentials: credentials
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private void SetAuthorizationHeader(Guid userId, string role)
+    {
+        var token = GenerateJwtToken(userId, role);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+    }
+
+    #endregion
+
+    #region GET /api/v1/users Tests
+
+    [Fact]
+    public async Task GetAll_WithoutAuth_ReturnsUnauthorized()
+    {
         // Act
-        var result = await _controller.GetAll();
+        var response = await _client.GetAsync("/api/v1/users");
 
         // Assert
-        var okResult = Assert.IsType<OkObjectResult>(result.Result);
-        var returnedUsers = Assert.IsAssignableFrom<IEnumerable<UserSummaryResponse>>(okResult.Value);
-        Assert.Equal(2, ((List<UserSummaryResponse>)returnedUsers).Count);
-    }
-
-    // ─────────────────────────────────────────────
-    // GET /users/{id}
-    // ─────────────────────────────────────────────
-    [Fact]
-    public async Task GetById_ReturnsOk_WhenUserExists()
-    {
-        var id = Guid.NewGuid();
-        var userResponse = new UserResponse(id, "John", "Bio", "john@example.com", UserRole.Author, DateTime.UtcNow, DateTime.UtcNow);
-
-        _userServiceMock.Setup(s => s.GetUserByIdAsync(id)).ReturnsAsync(userResponse);
-
-        var result = await _controller.GetById(id);
-
-        var okResult = Assert.IsType<OkObjectResult>(result.Result);
-        var returnedUser = Assert.IsType<UserResponse>(okResult.Value);
-        Assert.Equal(id, returnedUser.Id);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
-    public async Task GetById_ReturnsNotFound_WhenUserDoesNotExist()
+    public async Task GetAll_AsAdmin_ReturnsAllUsers()
     {
-        var id = Guid.NewGuid();
-        _userServiceMock.Setup(s => s.GetUserByIdAsync(id)).ReturnsAsync((UserResponse?)null);
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
 
-        var result = await _controller.GetById(id);
+        // Act
+        var response = await _client.GetAsync("/api/v1/users");
 
-        var notFoundResult = Assert.IsType<NotFoundObjectResult>(result.Result);
-        Assert.Contains(id.ToString(), notFoundResult.Value!.ToString());
-    }
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<UserSummaryResponse>>>();
 
-    // ─────────────────────────────────────────────
-    // PUT /users/{id}
-    // ─────────────────────────────────────────────
-    [Fact]
-    public async Task Update_ReturnsNoContent_WhenSuccessful()
-    {
-        var id = Guid.NewGuid();
-        var request = new UpdateUserRequest { Name = "Updated", Bio = "Bio", ImageUrl = "img.png" };
-        _userServiceMock.Setup(s => s.UpdateUserAsync(id, request.Name, request.Bio, request.ImageUrl))
-                        .ReturnsAsync(true);
-
-        var result = await _controller.Update(id, request);
-
-        Assert.IsType<NoContentResult>(result);
+        Assert.NotNull(apiResponse);
+        Assert.True(apiResponse.Success);
+        Assert.NotNull(apiResponse.Data);
+        Assert.Equal(3, apiResponse.Data.Count); // Admin, Regular User, Author
     }
 
     [Fact]
-    public async Task Update_ReturnsNotFound_WhenUserDoesNotExist()
+    public async Task GetAll_AsRegularUser_ReturnsForbidden()
     {
-        var id = Guid.NewGuid();
-        var request = new UpdateUserRequest { Name = "Updated", Bio = "Bio", ImageUrl = "img.png" };
-        _userServiceMock.Setup(s => s.UpdateUserAsync(id, request.Name, request.Bio, request.ImageUrl))
-                        .ReturnsAsync(false);
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
 
-        var result = await _controller.Update(id, request);
+        // Act
+        var response = await _client.GetAsync("/api/v1/users");
 
-        var notFoundResult = Assert.IsType<NotFoundObjectResult>(result);
-        Assert.Contains(id.ToString(), notFoundResult.Value!.ToString());
+        // Assert
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
-    // ─────────────────────────────────────────────
-    // DELETE /users/{id}
-    // ─────────────────────────────────────────────
-    [Fact]
-    public async Task Delete_ReturnsNoContent_WhenSuccessful()
-    {
-        var id = Guid.NewGuid();
-        _userServiceMock.Setup(s => s.DeleteUserAsync(id)).ReturnsAsync(true);
+    #endregion
 
-        var result = await _controller.Delete(id);
-
-        Assert.IsType<NoContentResult>(result);
-    }
+    #region GET /api/v1/users/{id} Tests
 
     [Fact]
-    public async Task Delete_ReturnsNotFound_WhenUserDoesNotExist()
+    public async Task GetById_ExistingUser_AsAdmin_ReturnsUser()
     {
-        var id = Guid.NewGuid();
-        _userServiceMock.Setup(s => s.DeleteUserAsync(id)).ReturnsAsync(false);
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-        var result = await _controller.Delete(id);
+        // Act
+        var response = await _client.GetAsync($"/api/v1/users/{userId}");
 
-        var notFoundResult = Assert.IsType<NotFoundObjectResult>(result);
-        Assert.Contains(id.ToString(), notFoundResult.Value!.ToString());
-    }
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<UserResponse>>();
 
-    // ─────────────────────────────────────────────
-    // GET /users/search
-    // ─────────────────────────────────────────────
-    [Fact]
-    public async Task Search_ReturnsBadRequest_WhenQueryEmpty()
-    {
-        var result = await _controller.Search("");
-        Assert.IsType<BadRequestObjectResult>(result.Result);
-    }
-
-    // ─────────────────────────────────────────────
-    // GET /users (exception)
-    // ─────────────────────────────────────────────
-    [Fact]
-    public async Task GetAll_ReturnsInternalServerError_OnException()
-    {
-        _userServiceMock.Setup(s => s.GetAllUsersAsync(null))
-                        .ThrowsAsync(new Exception("Database error"));
-
-        var result = await _controller.GetAll();
-
-        var statusResult = Assert.IsType<ObjectResult>(result.Result);
-        Assert.Equal(500, statusResult.StatusCode);
-    }
-
-    // ─────────────────────────────────────────────
-    // GET /users/authors
-    // ─────────────────────────────────────────────
-    [Fact]
-    public async Task GetAuthors_ReturnsOk_WithAuthors()
-    {
-        var authors = new List<UserSummaryResponse>
-{
-    new UserSummaryResponse(Guid.NewGuid(), "Alice", "alice@example.com", UserRole.Author)
-};
-        _userServiceMock.Setup(s => s.GetAuthorsAsync()).ReturnsAsync(authors);
-
-        var result = await _controller.GetAuthors();
-
-        var okResult = Assert.IsType<OkObjectResult>(result.Result);
-        var returnedAuthors = Assert.IsAssignableFrom<IEnumerable<UserSummaryResponse>>(okResult.Value);
-        Assert.Single(returnedAuthors);
+        Assert.NotNull(apiResponse);
+        Assert.True(apiResponse.Success);
+        Assert.NotNull(apiResponse.Data);
+        Assert.Equal(userId, apiResponse.Data.Id);
+        Assert.Equal("Regular User", apiResponse.Data.Name);
+        Assert.Equal(UserRole.User, apiResponse.Data.Role);
     }
 
     [Fact]
-    public async Task GetAuthors_ReturnsInternalServerError_OnException()
+    public async Task GetById_OwnProfile_ReturnsUser()
     {
-        _userServiceMock.Setup(s => s.GetAuthorsAsync()).ThrowsAsync(new Exception("Oops"));
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-        var result = await _controller.GetAuthors();
+        // Act
+        var response = await _client.GetAsync($"/api/v1/users/{userId}");
 
-        var statusResult = Assert.IsType<ObjectResult>(result.Result);
-        Assert.Equal(500, statusResult.StatusCode);
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<UserResponse>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.True(apiResponse.Success);
+        Assert.NotNull(apiResponse.Data);
+        Assert.Equal(userId, apiResponse.Data.Id);
     }
 
-    // ─────────────────────────────────────────────
-    // GET /users/authors/{id}
-    // ─────────────────────────────────────────────
     [Fact]
-    public async Task GetAuthorById_ReturnsNotFound_WhenAuthorDoesNotExist()
+    public async Task GetById_OtherUser_AsRegularUser_ReturnsForbidden()
     {
-        var id = Guid.NewGuid();
-        _userServiceMock.Setup(s => s.GetAuthorByIdAsync(id)).ReturnsAsync((AuthorResponse?)null);
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
+        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
-        var result = await _controller.GetAuthorById(id);
+        // Act
+        var response = await _client.GetAsync($"/api/v1/users/{userId}");
 
-        var notFound = Assert.IsType<NotFoundObjectResult>(result.Result);
-        Assert.Contains(id.ToString(), notFound.Value!.ToString());
+        // Assert
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
-    // ─────────────────────────────────────────────
-    // GET /users/{id}/playlists - Author forbidden
-    // ─────────────────────────────────────────────
     [Fact]
-    public async Task GetUserPlaylists_ReturnsForbid_WhenAuthorAccessesOtherUser()
+    public async Task GetById_NonExistentUser_AsAdmin_ReturnsNotFound()
     {
-        var authorId = Guid.NewGuid();
-        var otherUserId = Guid.NewGuid();
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+        var userId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
-        var claims = new List<Claim>
-{
-    new Claim(ClaimTypes.NameIdentifier, authorId.ToString())
-};
-        _controller.ControllerContext = new ControllerContext
-        {
-            HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test")) }
+        // Act
+        var response = await _client.GetAsync($"/api/v1/users/{userId}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    #endregion
+
+    #region PUT /api/v1/users/{id} Tests
+
+    [Fact]
+    public async Task Update_AsAdmin_UpdatesAnyUser()
+    {
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var request = new UpdateUserRequest 
+        { 
+            Name = "Admin Updated User",
+            Bio = "Admin changed this",
+            ImageUrl = "https://example.com/updated.png"
         };
 
-        _controller.ControllerContext.HttpContext.User.AddIdentity(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Role, "Author") }));
+        // Act
+        var response = await _client.PutAsJsonAsync($"/api/v1/users/{userId}", request);
 
-        var result = await _controller.GetUserPlaylists(otherUserId);
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
-        var objectResult = Assert.IsType<ObjectResult>(result.Result);
-        Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
-        Assert.Equal("Authors can only access their own playlists.", objectResult.Value);
-    }// ─────────────────────────────────────────────
-     // GET /users/{id}/playlists - user not found
-     // ─────────────────────────────────────────────
-    [Fact]
-    public async Task GetUserPlaylists_ReturnsNotFound_WhenUserDoesNotExist()
-    {
-        var userId = Guid.NewGuid();
-        var claims = new List<Claim>
-{
-    new Claim(ClaimTypes.NameIdentifier, userId.ToString())
-};
-        _controller.ControllerContext = new ControllerContext
-        {
-            HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test")) }
-        };
-
-        _userServiceMock.Setup(s => s.GetUserPlaylistsAsync(userId, true))
-                        .ReturnsAsync(new List<PlaylistSummaryResponse>());
-        _userServiceMock.Setup(s => s.GetUserByIdAsync(userId)).ReturnsAsync((UserResponse?)null);
-
-        var result = await _controller.GetUserPlaylists(userId);
-
-        var notFound = Assert.IsType<NotFoundObjectResult>(result.Result);
-        Assert.Contains(userId.ToString(), notFound.Value!.ToString());
+        // Verify update
+        var getResponse = await _client.GetAsync($"/api/v1/users/{userId}");
+        var apiResponse = await getResponse.Content.ReadFromJsonAsync<ApiResponse<UserResponse>>();
+        Assert.Equal("Admin Updated User", apiResponse?.Data?.Name);
+        Assert.Equal("Admin changed this", apiResponse?.Data?.Bio);
     }
 
     [Fact]
-    public async Task Search_ReturnsOk_WithResults()
+    public async Task Update_AsRegularUser_ReturnsForbidden()
     {
-        var query = "John";
-        var users = new List<UserSummaryResponse>
-        {
-            new UserSummaryResponse(Guid.NewGuid(), "John", "john@example.com", UserRole.Author)
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var request = new UpdateUserRequest 
+        { 
+            Name = "Updated Regular User",
+            Bio = "Updated bio"
         };
-        _userServiceMock.Setup(s => s.SearchUsersAsync(query, null)).ReturnsAsync(users);
 
-        var result = await _controller.Search(query);
+        // Act
+        var response = await _client.PutAsJsonAsync($"/api/v1/users/{userId}", request);
 
-        var okResult = Assert.IsType<OkObjectResult>(result.Result);
-        var returnedUsers = Assert.IsAssignableFrom<IEnumerable<UserSummaryResponse>>(okResult.Value);
-        Assert.Single(returnedUsers);
+        // Assert
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Update_NonExistentUser_ReturnsNotFound()
+    {
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+        var userId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+        var request = new UpdateUserRequest { Name = "Test" };
+
+        // Act
+        var response = await _client.PutAsJsonAsync($"/api/v1/users/{userId}", request);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    #endregion
+
+    #region DELETE /api/v1/users/{id} Tests
+
+    [Fact]
+    public async Task Delete_AsAdmin_DeletesSuccessfully()
+    {
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+        var userId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        // Act
+        var response = await _client.DeleteAsync($"/api/v1/users/{userId}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        // Verify deletion
+        var getResponse = await _client.GetAsync($"/api/v1/users/{userId}");
+        Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_NonExistentUser_ReturnsNotFound()
+    {
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+        var userId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+
+        // Act
+        var response = await _client.DeleteAsync($"/api/v1/users/{userId}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    #endregion
+
+    #region GET /api/v1/users/search Tests
+
+    [Fact]
+    public async Task Search_WithQuery_AsAdmin_ReturnsMatchingUsers()
+    {
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+
+        // Act
+        var response = await _client.GetAsync("/api/v1/users/search?query=User");
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<UserSummaryResponse>>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.True(apiResponse.Success);
+        Assert.NotNull(apiResponse.Data);
+        Assert.True(apiResponse.Data.Count >= 2); // At least "Regular User" and "Author User"
+        Assert.All(apiResponse.Data, user => Assert.Contains("User", user.Name));
+    }
+
+    [Fact]
+    public async Task Search_WithEmptyQuery_ReturnsBadRequest()
+    {
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+
+        // Act
+        var response = await _client.GetAsync("/api/v1/users/search?query=");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Search_NoMatches_ReturnsEmptyList()
+    {
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+
+        // Act
+        var response = await _client.GetAsync("/api/v1/users/search?query=NonExistentUser");
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<UserSummaryResponse>>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.True(apiResponse.Success);
+        Assert.NotNull(apiResponse.Data);
+        Assert.Empty(apiResponse.Data);
+    }
+
+    #endregion
+
+    #region GET /api/v1/users/authors Tests
+
+    [Fact]
+    public async Task GetAuthors_AsAnyUser_ReturnsOnlyAuthors()
+    {
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+
+        // Act
+        var response = await _client.GetAsync("/api/v1/users/authors");
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<UserSummaryResponse>>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.True(apiResponse.Success);
+        Assert.NotNull(apiResponse.Data);
+        Assert.Single(apiResponse.Data);
+        Assert.All(apiResponse.Data, author => Assert.Equal(UserRole.Author, author.Role));
+    }
+
+    #endregion
+
+    #region GET /api/v1/users/authors/{id} Tests
+
+    [Fact]
+    public async Task GetAuthorById_ExistingAuthor_ReturnsAuthor()
+    {
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+        var authorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        // Act
+        var response = await _client.GetAsync($"/api/v1/users/authors/{authorId}");
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<AuthorResponse>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.True(apiResponse.Success);
+        Assert.NotNull(apiResponse.Data);
+        Assert.Equal(authorId, apiResponse.Data.Id);
+        Assert.Equal("Author User", apiResponse.Data.Name);
+    }
+
+    [Fact]
+    public async Task GetAuthorById_NonExistentAuthor_ReturnsNotFound()
+    {
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+        var authorId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+
+        // Act
+        var response = await _client.GetAsync($"/api/v1/users/authors/{authorId}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    #endregion
+
+    #region GET /api/v1/users/{id}/playlists Tests
+
+    [Fact]
+    public async Task GetUserPlaylists_OwnPlaylists_ReturnsAllPlaylists()
+    {
+        // Arrange - Regular user accessing their own playlists
+        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+        // Act
+        var response = await _client.GetAsync($"/api/v1/users/{userId}/playlists");
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<PlaylistSummaryResponse>>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.True(apiResponse.Success);
+        Assert.NotNull(apiResponse.Data);
+        Assert.Equal(2, apiResponse.Data.Count); // Public and Private playlists
+    }
+
+    [Fact]
+    public async Task GetUserPlaylists_AsAdmin_ReturnsAllUserPlaylists()
+    {
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+        // Act
+        var response = await _client.GetAsync($"/api/v1/users/{userId}/playlists");
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<PlaylistSummaryResponse>>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.True(apiResponse.Success);
+        Assert.NotNull(apiResponse.Data);
+        Assert.Equal(2, apiResponse.Data.Count);
+    }
+
+    [Fact]
+    public async Task GetUserPlaylists_AsAuthorAccessingOtherUser_ReturnsForbidden()
+    {
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+        // Act
+        var response = await _client.GetAsync($"/api/v1/users/{userId}/playlists");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetUserPlaylists_NonExistentUser_ReturnsNotFound()
+    {
+        // Arrange
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+        var userId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+
+        // Act
+        var response = await _client.GetAsync($"/api/v1/users/{userId}/playlists");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetUserPlaylists_OtherUserPublicPlaylistsOnly_ReturnsOnlyPublic()
+    {
+        // Arrange - Regular user accessing author's playlists (should only see public)
+        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
+        var authorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        // Act
+        var response = await _client.GetAsync($"/api/v1/users/{authorId}/playlists");
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<PlaylistSummaryResponse>>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.True(apiResponse.Success);
+        Assert.NotNull(apiResponse.Data);
+        Assert.Single(apiResponse.Data); // Only the public album
+        Assert.All(apiResponse.Data, p => Assert.True(p.IsPublic));
+    }
+
+    #endregion
 }

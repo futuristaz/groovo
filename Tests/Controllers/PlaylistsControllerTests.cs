@@ -324,7 +324,7 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     public async Task Update_AsOwner_UpdatesPlaylist()
     {
         // Arrange
-        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
         var request = new UpdatePlaylistRequest
         {

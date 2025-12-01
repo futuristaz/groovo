@@ -79,8 +79,6 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 };
             });
         });
-
-    ;
     }
 
     protected override IHost CreateHost(IHostBuilder builder)
@@ -104,6 +102,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     private void SeedTestData(ApplicationDbContext context)
     {
+        
         // --- Users ---
         var adminUser = new User
         {
@@ -111,7 +110,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             Name = "Admin User",
             Email = "admin@test.com",
             PasswordHash = "hashedpassword",
-            Role = UserRole.Admin
+            Role = UserRole.Admin,
+            Bio = "Admin bio",
+            ImageUrl = "https://example.com/admin.png",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
         var regularUser = new User
         {
@@ -119,7 +122,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             Name = "Regular User",
             Email = "user@test.com",
             PasswordHash = "hashedpassword",
-            Role = UserRole.User
+            Role = UserRole.User,
+            Bio = "Regular user bio",
+            ImageUrl = "https://example.com/user.png",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
         var authorUser = new User
         {
@@ -127,7 +134,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             Name = "Author User",
             Email = "author@test.com",
             PasswordHash = "hashedpassword",
-            Role = UserRole.Author
+            Role = UserRole.Author,
+            Bio = "Author bio",
+            ImageUrl = "https://example.com/author.png",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
         context.Users.AddRange(adminUser, regularUser, authorUser);
 
@@ -140,7 +151,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             IsPublic = true,
             IsAlbum = false,
             IsActive = true,
-            TotalTime = 600
+            TotalTime = 600,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
         var privatePlaylist = new Playlist
         {
@@ -150,7 +163,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             IsPublic = false,
             IsAlbum = false,
             IsActive = true,
-            TotalTime = 300
+            TotalTime = 300,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
         var album = new Playlist
         {
@@ -160,12 +175,15 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             IsPublic = true,
             IsAlbum = true,
             IsActive = true,
-            TotalTime = 1200
+            TotalTime = 1200,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
         context.Playlists.AddRange(publicPlaylist, privatePlaylist, album);
 
         // --- Playlist Owners ---
         context.PlaylistOwners.AddRange(
+            new PlaylistOwner { PlaylistId = publicPlaylist.Id, UserId = regularUser.Id },
             new PlaylistOwner { PlaylistId = privatePlaylist.Id, UserId = regularUser.Id },
             new PlaylistOwner { PlaylistId = album.Id, UserId = authorUser.Id }
         );
