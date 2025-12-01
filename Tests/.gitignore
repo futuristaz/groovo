@@ -1,0 +1,12 @@
+# Build results
+bin/
+obj/
+out/
+TestResults/
+
+# Coverage tools
+coverage/
+coverage.xml
+*.coverage
+*.coveragexml
+coveragereport/
