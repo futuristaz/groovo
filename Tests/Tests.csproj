@@ -9,12 +9,6 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <IsPackable>false</IsPackable>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-  </PropertyGroup>
-
-  <PropertyGroup>
     <CoverletOutput>TestResults/</CoverletOutput>
     <CollectCoverage>true</CollectCoverage>
     <ExcludeByFile>../Models/**,../DTOs/**</ExcludeByFile>

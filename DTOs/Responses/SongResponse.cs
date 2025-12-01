@@ -1,7 +1,9 @@
 using Groovo.Models;
+using System.Text.Json.Serialization;
 
 namespace Groovo.DTOs.Responses;
 
+[method: JsonConstructor]
 public record SongResponse(
     Guid Id,
     string Name,

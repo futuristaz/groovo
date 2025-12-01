@@ -11,9 +11,11 @@ using System.Reflection;
 using tusdotnet;
 using Serilog;
 using Groovo.Services.Hub;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Groovo;
 
+[ExcludeFromCodeCoverage]
 public class Program
 {
     public static async Task Main(string[] args)
