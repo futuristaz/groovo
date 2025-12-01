@@ -27,7 +27,6 @@ public class SongFileServiceTests : IDisposable
         Directory.CreateDirectory(_config.FinalPath);
     }
 
-    // Clean up after tests
     public void Dispose()
     {
         try
@@ -40,10 +39,6 @@ public class SongFileServiceTests : IDisposable
         }
         catch { /* ignore */ }
     }
-
-    // ───────────────────────────────────────────────────────────────
-    // MOVE FILE TESTS
-    // ───────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task MoveUploadedFileAsync_MovesFileCorrectly()
@@ -59,10 +54,8 @@ public class SongFileServiceTests : IDisposable
         var filenameEncoded = Convert.ToBase64String(Encoding.UTF8.GetBytes("track.mp3"));
         await File.WriteAllTextAsync(metadataPath, $"filename {filenameEncoded}");
 
-        // Act
         var result = await _service.MoveUploadedFileAsync(uploadId, subfolder, uploadId);
 
-        // Assert
         Assert.Contains("songs", result);
         Assert.Contains(uploadId, result);
 
@@ -79,9 +72,6 @@ public class SongFileServiceTests : IDisposable
             _service.MoveUploadedFileAsync("missingId", "folder", "target"));
     }
 
-    // ───────────────────────────────────────────────────────────────
-    // FILE EXISTS TESTS
-    // ───────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task FileExistsAsync_ReturnsTrue_WhenFileExists()
@@ -103,9 +93,6 @@ public class SongFileServiceTests : IDisposable
         Assert.False(result);
     }
 
-    // ───────────────────────────────────────────────────────────────
-    // BUILD FINAL FILE NAME TEST
-    // ───────────────────────────────────────────────────────────────
 
     [Fact]
     public void BuildFinalFileName_GeneratesValidName()
@@ -115,9 +102,6 @@ public class SongFileServiceTests : IDisposable
         Assert.Equal("abc123", finalName);
     }
 
-    // ───────────────────────────────────────────────────────────────
-    // DELETE FILE TESTS
-    // ───────────────────────────────────────────────────────────────
 
     [Fact]
     public async Task DeleteFileAsync_DeletesFile()
@@ -140,13 +124,10 @@ public class SongFileServiceTests : IDisposable
         Assert.False(result);
     }
 
-    // ───────────────────────────────────────────────────────────────
-    // AUDIO DURATION TEST (optional)
-    // ───────────────────────────────────────────────────────────────
 
     [Fact(Skip = "Requires real audio file in temp upload.")]
     public void GetAudioDurationAsync_WorksWithRealAudioFile()
     {
-        // To enable: copy small WAV/MP3 to _config.TempPath using uploadId
+        
     }
 }

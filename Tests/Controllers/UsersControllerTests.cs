@@ -67,23 +67,18 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetAll_WithoutAuth_ReturnsUnauthorized()
     {
-        // Act
         var response = await _client.GetAsync("/api/v1/users");
 
-        // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
     public async Task GetAll_AsAdmin_ReturnsAllUsers()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
 
-        // Act
         var response = await _client.GetAsync("/api/v1/users");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<UserSummaryResponse>>>();
 
@@ -96,13 +91,10 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetAll_AsRegularUser_ReturnsForbidden()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
 
-        // Act
         var response = await _client.GetAsync("/api/v1/users");
 
-        // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
@@ -113,14 +105,11 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetById_ExistingUser_AsAdmin_ReturnsUser()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/users/{userId}");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<UserResponse>>();
 
@@ -135,14 +124,11 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetById_OwnProfile_ReturnsUser()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/users/{userId}");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<UserResponse>>();
 
@@ -155,28 +141,22 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetById_OtherUser_AsRegularUser_ReturnsForbidden()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/users/{userId}");
 
-        // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
     public async Task GetById_NonExistentUser_AsAdmin_ReturnsNotFound()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var userId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/users/{userId}");
 
-        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -197,10 +177,8 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
             ImageUrl = "https://example.com/updated.png"
         };
 
-        // Act
         var response = await _client.PutAsJsonAsync($"/api/v1/users/{userId}", request);
 
-        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
         // Verify update
@@ -213,7 +191,6 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Update_AsRegularUser_ReturnsForbidden()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
         var request = new UpdateUserRequest 
@@ -222,25 +199,20 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
             Bio = "Updated bio"
         };
 
-        // Act
         var response = await _client.PutAsJsonAsync($"/api/v1/users/{userId}", request);
 
-        // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
     public async Task Update_NonExistentUser_ReturnsNotFound()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var userId = Guid.Parse("99999999-9999-9999-9999-999999999999");
         var request = new UpdateUserRequest { Name = "Test" };
 
-        // Act
         var response = await _client.PutAsJsonAsync($"/api/v1/users/{userId}", request);
 
-        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -251,14 +223,11 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Delete_AsAdmin_DeletesSuccessfully()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var userId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
-        // Act
         var response = await _client.DeleteAsync($"/api/v1/users/{userId}");
 
-        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
         // Verify deletion
@@ -269,14 +238,11 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Delete_NonExistentUser_ReturnsNotFound()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var userId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
-        // Act
         var response = await _client.DeleteAsync($"/api/v1/users/{userId}");
 
-        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -287,13 +253,10 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Search_WithQuery_AsAdmin_ReturnsMatchingUsers()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
 
-        // Act
         var response = await _client.GetAsync("/api/v1/users/search?query=User");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<UserSummaryResponse>>>();
 
@@ -307,26 +270,20 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task Search_WithEmptyQuery_ReturnsBadRequest()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
 
-        // Act
         var response = await _client.GetAsync("/api/v1/users/search?query=");
 
-        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
     public async Task Search_NoMatches_ReturnsEmptyList()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
 
-        // Act
         var response = await _client.GetAsync("/api/v1/users/search?query=NonExistentUser");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<UserSummaryResponse>>>();
 
@@ -343,13 +300,10 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetAuthors_AsAnyUser_ReturnsOnlyAuthors()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
 
-        // Act
         var response = await _client.GetAsync("/api/v1/users/authors");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<UserSummaryResponse>>>();
 
@@ -367,14 +321,11 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetAuthorById_ExistingAuthor_ReturnsAuthor()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var authorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/users/authors/{authorId}");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<AuthorResponse>>();
 
@@ -388,14 +339,12 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetAuthorById_NonExistentAuthor_ReturnsNotFound()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var authorId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
-        // Act
+        
         var response = await _client.GetAsync($"/api/v1/users/authors/{authorId}");
 
-        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -406,14 +355,11 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetUserPlaylists_OwnPlaylists_ReturnsAllPlaylists()
     {
-        // Arrange - Regular user accessing their own playlists
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/users/{userId}/playlists");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<PlaylistSummaryResponse>>>();
 
@@ -426,14 +372,11 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetUserPlaylists_AsAdmin_ReturnsAllUserPlaylists()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/users/{userId}/playlists");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<PlaylistSummaryResponse>>>();
 
@@ -446,28 +389,24 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     [Fact]
     public async Task GetUserPlaylists_AsAuthorAccessingOtherUser_ReturnsForbidden()
     {
-        // Arrange
+
         SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
         var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/users/{userId}/playlists");
 
-        // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
     public async Task GetUserPlaylists_NonExistentUser_ReturnsNotFound()
     {
-        // Arrange
+
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var userId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/users/{userId}/playlists");
 
-        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -478,10 +417,8 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var authorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/users/{authorId}/playlists");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<PlaylistSummaryResponse>>>();
 

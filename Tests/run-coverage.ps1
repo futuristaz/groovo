@@ -9,8 +9,8 @@ try {
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "coveragereport"
 
     Write-Host "Running tests..." -ForegroundColor Cyan
-    dotnet test --collect:"XPlat Code Coverage"
-
+    dotnet test --settings coverlet.runsettings
+    
     $testExitCode = $LASTEXITCODE
     if ($testExitCode -ne 0) {
         Write-Host "Some tests failed (exit code $testExitCode)" -ForegroundColor Yellow

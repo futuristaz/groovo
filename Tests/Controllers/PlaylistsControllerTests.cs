@@ -67,23 +67,18 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task GetAll_WithoutAuth_ReturnsUnauthorized()
     {
-        // Act
         var response = await _client.GetAsync("/api/v1/playlists");
 
-        // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
     public async Task GetAll_AsRegularUser_ReturnsOnlyPublicPlaylists()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
 
-        // Act
         var response = await _client.GetAsync("/api/v1/playlists");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<PlaylistSummaryResponse>>>();
 
@@ -97,13 +92,10 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task GetAll_AsAdmin_ReturnsAllPlaylists()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
 
-        // Act
         var response = await _client.GetAsync("/api/v1/playlists");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<PlaylistSummaryResponse>>>();
 
@@ -120,14 +112,11 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task GetById_PublicPlaylist_ReturnsPlaylist()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var playlistId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/playlists/{playlistId}");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<PlaylistResponse>>();
 
@@ -145,10 +134,8 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/playlists/{playlistId}");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<PlaylistResponse>>();
 
@@ -166,24 +153,19 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
         SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
         var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/playlists/{playlistId}");
 
-        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
     public async Task GetById_NonExistentPlaylist_ReturnsNotFound()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var playlistId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/playlists/{playlistId}");
 
-        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -194,7 +176,6 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task Create_AsRegularUser_CreatesPlaylist()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var request = new CreatePlaylistRequest
         {
@@ -204,10 +185,8 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
             IsAlbum = false
         };
 
-        // Act
         var response = await _client.PostAsJsonAsync("/api/v1/playlists", request);
 
-        // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<PlaylistResponse>>();
 
@@ -221,7 +200,6 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task Create_AsAuthor_CreatingPlaylist_ReturnsForbidden()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
         var request = new CreatePlaylistRequest
         {
@@ -229,17 +207,14 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
             IsAlbum = false // Authors can't create regular playlists
         };
 
-        // Act
         var response = await _client.PostAsJsonAsync("/api/v1/playlists", request);
 
-        // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
     public async Task Create_AsAuthor_CreatingAlbum_Succeeds()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
         var request = new CreatePlaylistRequest
         {
@@ -249,10 +224,8 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
             IsAlbum = true
         };
 
-        // Act
         var response = await _client.PostAsJsonAsync("/api/v1/playlists", request);
 
-        // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<PlaylistResponse>>();
 
@@ -265,7 +238,6 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task Create_AsUser_CreatingAlbum_ReturnsForbidden()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var request = new CreatePlaylistRequest
         {
@@ -273,17 +245,14 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
             IsAlbum = true // Users can't create albums
         };
 
-        // Act
         var response = await _client.PostAsJsonAsync("/api/v1/playlists", request);
 
-        // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
     public async Task Create_AsAdmin_CreatingAnything_Succeeds()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var request = new CreatePlaylistRequest
         {
@@ -291,17 +260,14 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
             IsAlbum = true
         };
 
-        // Act
         var response = await _client.PostAsJsonAsync("/api/v1/playlists", request);
 
-        // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     [Fact]
     public async Task Create_WithInvalidModel_ReturnsBadRequest()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var request = new CreatePlaylistRequest
         {
@@ -309,10 +275,8 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
             IsAlbum = false
         };
 
-        // Act
         var response = await _client.PostAsJsonAsync("/api/v1/playlists", request);
 
-        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
@@ -323,7 +287,6 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task Update_AsOwner_UpdatesPlaylist()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
         var request = new UpdatePlaylistRequest
@@ -332,13 +295,12 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
             Description = "Updated description"
         };
 
-        // Act
         var response = await _client.PutAsJsonAsync($"/api/v1/playlists/{playlistId}", request);
 
-        // Assert
+
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
-        // Verify update
+
         var getResponse = await _client.GetAsync($"/api/v1/playlists/{playlistId}");
         var apiResponse = await getResponse.Content.ReadFromJsonAsync<ApiResponse<PlaylistResponse>>();
         Assert.Equal("Updated Playlist Name", apiResponse?.Data?.Name);
@@ -355,17 +317,15 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
             Name = "Unauthorized Update"
         };
 
-        // Act
         var response = await _client.PutAsJsonAsync($"/api/v1/playlists/{playlistId}", request);
 
-        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
     public async Task Update_AsAdmin_UpdatesAnyPlaylist()
     {
-        // Arrange
+
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
         var request = new UpdatePlaylistRequest
@@ -373,10 +333,8 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
             Name = "Admin Updated"
         };
 
-        // Act
         var response = await _client.PutAsJsonAsync($"/api/v1/playlists/{playlistId}", request);
 
-        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
@@ -387,17 +345,13 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task Delete_EmptyPlaylistAsOwner_DeletesSuccessfully()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
-        // Act
         var response = await _client.DeleteAsync($"/api/v1/playlists/{playlistId}");
 
-        // Assert
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
 
-        // Verify deletion
         var getResponse = await _client.GetAsync($"/api/v1/playlists/{playlistId}");
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
@@ -405,14 +359,12 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task Delete_AsNonOwner_ReturnsNotFound()
     {
-        // Arrange
+
         SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
         var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
-        // Act
         var response = await _client.DeleteAsync($"/api/v1/playlists/{playlistId}");
 
-        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -423,17 +375,15 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task AddSongToPlaylist_AsOwner_AddsSuccessfully()
     {
-        // Arrange
+
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
         var songId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
 
-        // Act
         var response = await _client.PostAsync(
             $"/api/v1/playlists/{playlistId}/songs/{songId}",
             null);
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -445,29 +395,25 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
         var playlistId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
         var songId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
 
-        // Act
         var response = await _client.PostAsync(
             $"/api/v1/playlists/{playlistId}/songs/{songId}",
             null);
 
-        // Assert
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
     [Fact]
     public async Task AddSongToPlaylist_NonExistentSong_ReturnsNotFound()
     {
-        // Arrange
+
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
         var songId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
-        // Act
         var response = await _client.PostAsync(
             $"/api/v1/playlists/{playlistId}/songs/{songId}",
             null);
 
-        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -487,25 +433,21 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
         var addResponse = await _client.PostAsync($"/api/v1/playlists/{playlistId}/songs/{songId}", null);
         addResponse.EnsureSuccessStatusCode();
 
-        // Act
         var response = await _client.DeleteAsync($"/api/v1/playlists/{playlistId}/songs/{songId}");
 
-        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
     public async Task RemoveSongFromPlaylist_NonExistentSong_ReturnsNotFound()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
         var songId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
-        // Act
         var response = await _client.DeleteAsync($"/api/v1/playlists/{playlistId}/songs/{songId}");
 
-        // Assert
+
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
@@ -516,13 +458,11 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task Search_WithQuery_ReturnsMatchingPlaylists()
     {
-        // Arrange
+
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
 
-        // Act
         var response = await _client.GetAsync("/api/v1/playlists/search?query=Public");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<PlaylistSummaryResponse>>>();
 
@@ -536,26 +476,22 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task Search_WithoutQuery_ReturnsBadRequest()
     {
-        // Arrange
+
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
 
-        // Act
         var response = await _client.GetAsync("/api/v1/playlists/search?query=");
 
-        // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
     public async Task Search_NoMatches_ReturnsEmptyList()
     {
-        // Arrange
+
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
 
-        // Act
         var response = await _client.GetAsync("/api/v1/playlists/search?query=NonExistent");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<PlaylistSummaryResponse>>>();
 
@@ -572,14 +508,12 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task GetSongsInPlaylist_PublicPlaylist_ReturnsSongs()
     {
-        // Arrange
+
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var playlistId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/playlists/{playlistId}/songs");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<SongSummaryResponse>>>();
 
@@ -592,14 +526,11 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task GetSongsInPlaylist_PrivatePlaylistAsOwner_ReturnsSongs()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
         var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/playlists/{playlistId}/songs");
 
-        // Assert
         response.EnsureSuccessStatusCode();
         var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<SongSummaryResponse>>>();
 
@@ -612,14 +543,11 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task GetSongsInPlaylist_PrivatePlaylistAsNonOwner_ReturnsNotFound()
     {
-        // Arrange
         SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
         var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
 
-        // Act
         var response = await _client.GetAsync($"/api/v1/playlists/{playlistId}/songs");
 
-        // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
