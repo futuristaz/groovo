@@ -1,9 +1,11 @@
 using Groovo.Data.Contexts;
 using Groovo.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Groovo.Data;
 
+[ExcludeFromCodeCoverage]
 public static class DatabaseSeeder
 {
     public static async Task SeedAsync(ApplicationDbContext context)

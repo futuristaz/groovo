@@ -67,7 +67,7 @@ namespace Groovo.Controllers
                 if (songResponse == null)
                 {
                     if (errorMessage == "Authors can only create songs for themselves.")
-                        return Forbid(errorMessage);
+                        return StatusCode(StatusCodes.Status403Forbidden, errorMessage);
                     return BadRequest(errorMessage);
                 }
 
