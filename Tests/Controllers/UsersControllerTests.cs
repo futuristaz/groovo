@@ -4,15 +4,12 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
-using Xunit;
 using Groovo.DTOs;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
 using Groovo.Models;
 using System.IdentityModel.Tokens.Jwt;
 using Groovo.Tests.Factories;
-using Microsoft.Extensions.DependencyInjection;
-using Groovo.Data.Contexts;
 
 namespace Groovo.Tests.Controllers;
 
