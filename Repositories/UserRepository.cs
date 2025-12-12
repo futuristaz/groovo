@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Groovo.Data.Contexts;
 using Groovo.Models;
+using Groovo.DTOs;
 
 namespace Groovo.Repositories;
 

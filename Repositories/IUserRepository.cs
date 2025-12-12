@@ -1,4 +1,5 @@
 using Groovo.Models;
+using Groovo.DTOs;
 
 namespace Groovo.Repositories;
 

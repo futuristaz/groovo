@@ -1,6 +1,6 @@
 using System.ComponentModel;
 
-namespace Groovo.Models;
+namespace Groovo.DTOs;
 
 public enum UserRole
 {

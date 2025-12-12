@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
-using Groovo.Models;
+using Groovo.DTOs;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
 using Groovo.Services;

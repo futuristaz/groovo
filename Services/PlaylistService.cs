@@ -4,6 +4,7 @@ using Groovo.DTOs.Responses;
 using Groovo.Hubs;
 using Groovo.Models;
 using Groovo.Repositories;
+using Groovo.DTOs;
 
 namespace Groovo.Services
 {

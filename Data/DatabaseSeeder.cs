@@ -1,5 +1,6 @@
 using Groovo.Data.Contexts;
 using Groovo.Models;
+using Groovo.DTOs;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics.CodeAnalysis;
 

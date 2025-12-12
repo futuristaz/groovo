@@ -7,6 +7,7 @@ using Groovo.Services;
 using Groovo.Exceptions;
 using Microsoft.AspNetCore.Hosting;
 using Groovo.Repositories;
+using Groovo.DTOs;
 
 namespace Groovo.Tests;
 

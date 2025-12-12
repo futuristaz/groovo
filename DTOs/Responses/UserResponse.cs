@@ -1,5 +1,3 @@
-using Groovo.Models;
-
 namespace Groovo.DTOs.Responses;
 
 public record UserResponse(

@@ -1,5 +1,5 @@
 using Groovo.DTOs.Responses;
-using Groovo.Models;
+using Groovo.DTOs;
 using Groovo.Repositories;
 
 namespace Groovo.Services

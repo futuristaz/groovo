@@ -3,6 +3,7 @@ using Groovo.Services;
 using Groovo.Repositories;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Groovo.DTOs;
 
 namespace Groovo.Tests.Services;
 

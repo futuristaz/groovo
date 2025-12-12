@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
+using Groovo.DTOs;
 
 namespace Groovo.Models;
 
