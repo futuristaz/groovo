@@ -44,14 +44,4 @@ public class RefreshTokenRepository : IRefreshTokenRepository
         _context.RefreshTokens.Update(refreshToken);
         await _context.SaveChangesAsync();
     }
-
-    public async Task DeleteAsync(Guid id)
-    {
-        var token = await _context.RefreshTokens.FindAsync(id);
-        if (token != null)
-        {
-            _context.RefreshTokens.Remove(token);
-            await _context.SaveChangesAsync();
-        }
-    }
 }

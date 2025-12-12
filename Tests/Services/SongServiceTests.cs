@@ -35,9 +35,9 @@ public class SongServiceTests
     [Fact]
     public async Task GetSongByIdAsync_ReturnsSong_WhenSongExists()
     {
-        var song = new Song { Id = Guid.NewGuid(), Name = "Test Song", IsActive = true };
+        var song = new Song { Id = Guid.NewGuid(), Name = "Test Song", IsActive = true, SongAuthors = new List<SongAuthor>() };
         
-        _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, false, false, false))
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, false, true, false))
             .ReturnsAsync(song);
 
         var result = await _service.GetSongByIdAsync(song.Id);
@@ -120,6 +120,12 @@ public class SongServiceTests
         _playlistRepositoryMock.Setup(r => r.GetByIdAsync(album.Id, false, false))
             .ReturnsAsync(album);
 
+        _playlistRepositoryMock.Setup(r => r.GetMaxSongOrderAsync(album.Id))
+            .ReturnsAsync(0);
+
+        _playlistRepositoryMock.Setup(r => r.AddSongToPlaylistAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<int>()))
+            .ReturnsAsync(1);
+
         var request = new CreateSongRequest
         {
             Name = "Valid Song",
@@ -129,10 +135,23 @@ public class SongServiceTests
             AuthorIds = new List<Guid>()
         };
 
+        _songRepositoryMock.Setup(r => r.ExistsByNameAndAlbumAsync(request.Name, request.Album, null))
+            .ReturnsAsync(false);
+
         Song? capturedSong = null;
         _songRepositoryMock.Setup(r => r.CreateAsync(It.IsAny<Song>()))
             .Callback<Song>(s => capturedSong = s)
             .ReturnsAsync((Song s) => s);
+
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), false, true, false))
+            .ReturnsAsync(() => 
+            {
+                if (capturedSong != null)
+                {
+                    capturedSong.SongAuthors = new List<SongAuthor>();
+                }
+                return capturedSong;
+            });
 
         _userRepositoryMock.Setup(r => r.GetByIdsAsync(It.IsAny<List<Guid>>()))
             .ReturnsAsync(new List<User>());
@@ -152,15 +171,22 @@ public class SongServiceTests
     [Fact]
     public async Task UpdateSongAsync_UpdatesSong_WhenValid()
     {
-        var song = new Song { Id = Guid.NewGuid(), Name = "Old Name", IsActive = true };
+        var song = new Song { Id = Guid.NewGuid(), Name = "Old Name", IsActive = true, SongAuthors = new List<SongAuthor>(), Album = Guid.NewGuid() };
         
-        _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, false, false, false))
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, true, true, false))
             .ReturnsAsync(song);
 
         Song? updatedSong = null;
         _songRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<Song>()))
             .Callback<Song>(s => updatedSong = s)
             .Returns(Task.CompletedTask);
+
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(song.Album, true, false))
+            .ReturnsAsync(new Playlist { Id = song.Album, Name = "Album", IsAlbum = true });
+        _playlistRepositoryMock.Setup(r => r.GetMaxSongOrderAsync(song.Album))
+            .ReturnsAsync(0);
+        _playlistRepositoryMock.Setup(r => r.AddSongToPlaylistAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<int>()))
+            .ReturnsAsync(1);
 
         var request = new UpdateSongRequest
         {
@@ -186,7 +212,7 @@ public class SongServiceTests
             IsActive = true
         };
         
-        _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, false, false, false))
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, true, true, false))
             .ReturnsAsync(song);
 
         _songRepositoryMock.Setup(r => r.DeleteAsync(song.Id))

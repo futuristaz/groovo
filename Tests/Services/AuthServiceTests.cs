@@ -198,7 +198,7 @@ public class AuthServiceTests
     {
         var token = new RefreshToken { Id = Guid.NewGuid(), Token = "revoke-token", UserId = Guid.NewGuid(), IsRevoked = false };
 
-        _refreshTokenRepositoryMock.Setup(r => r.GetByTokenAsync("revoke-token", false, false))
+        _refreshTokenRepositoryMock.Setup(r => r.GetByTokenAsync("revoke-token", false, true))
             .ReturnsAsync(token);
 
         RefreshToken updatedToken = null!;

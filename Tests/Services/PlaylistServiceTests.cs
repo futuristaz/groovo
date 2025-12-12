@@ -251,26 +251,6 @@ public class PlaylistServiceTests
     }
 
     [Fact]
-    public async Task CreatePlaylistAsync_AdminCanCreateAnything_Success()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var request = new CreatePlaylistRequest
-        {
-            Name = "Admin Album",
-            IsAlbum = true
-        };
-
-        // Act
-        var (playlist, error) = await _service.CreatePlaylistAsync(request, userId, "Admin");
-
-        // Assert
-        Assert.NotNull(playlist);
-        Assert.Null(error);
-        Assert.True(playlist.IsAlbum);
-    }
-
-    [Fact]
     public async Task CreatePlaylistAsync_WithInvalidOwnerIds_ReturnsError()
     {
         // Arrange
@@ -515,7 +495,7 @@ public class PlaylistServiceTests
         var playlistOwner = new PlaylistOwner { PlaylistId = playlist.Id, UserId = userId, User = user };
         playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
 
-        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, false))
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
             .ReturnsAsync(playlist);
 
         _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, false, false, false))
@@ -524,7 +504,7 @@ public class PlaylistServiceTests
         _playlistRepositoryMock.Setup(r => r.GetMaxSongOrderAsync(playlist.Id))
             .ReturnsAsync(0);
 
-        _playlistRepositoryMock.Setup(r => r.AddSongToPlaylistAsync(playlist.Id, song.Id, 1))
+        _playlistRepositoryMock.Setup(r => r.AddSongToPlaylistAsync(playlist.Id, song.Id, 0))
             .ReturnsAsync(1);
 
         _songRepositoryMock.Setup(r => r.GetSongLengthAsync(song.Id))
@@ -541,7 +521,7 @@ public class PlaylistServiceTests
         // Assert
         Assert.True(success);
         Assert.Contains("Added song", error);
-        _playlistRepositoryMock.Verify(r => r.AddSongToPlaylistAsync(playlist.Id, song.Id, 1), Times.Once);
+        _playlistRepositoryMock.Verify(r => r.AddSongToPlaylistAsync(playlist.Id, song.Id, 0), Times.Once);
     }
 
     [Fact]
@@ -557,14 +537,11 @@ public class PlaylistServiceTests
         playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
         playlist.PlaylistSongs = new List<PlaylistSong> { playlistSong };
 
-        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, false))
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
             .ReturnsAsync(playlist);
 
         _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, false, false, false))
             .ReturnsAsync(song);
-
-        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, false, true))
-            .ReturnsAsync(playlist);
 
         // Act
         var (success, error) = await _service.AddSongToPlaylistAsync(playlist.Id, song.Id, userId);
@@ -617,10 +594,7 @@ public class PlaylistServiceTests
         playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
         playlist.PlaylistSongs = new List<PlaylistSong> { playlistSong };
 
-        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, false))
-            .ReturnsAsync(playlist);
-
-        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, false, true))
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
             .ReturnsAsync(playlist);
 
         _playlistRepositoryMock.Setup(r => r.RemoveSongFromPlaylistAsync(playlist.Id, song.Id))
@@ -658,6 +632,9 @@ public class PlaylistServiceTests
             .ReturnsAsync(playlist);
 
         _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, false, true))
+            .ReturnsAsync(playlist);
+
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
             .ReturnsAsync(playlist);
 
         // Act

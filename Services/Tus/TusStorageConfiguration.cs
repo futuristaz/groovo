@@ -2,8 +2,8 @@ namespace Groovo.Services.Tus;
 
 public class TusStorageConfiguration
 {
-    public string TempPath { get; }
-    public string FinalPath { get; }
+    public string TempPath { get; set; }
+    public string FinalPath { get; set; }
 
     public TusStorageConfiguration()
     {

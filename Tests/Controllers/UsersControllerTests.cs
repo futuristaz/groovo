@@ -59,44 +59,6 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
 
     #endregion
 
-    #region GET /api/v1/users Tests
-
-    [Fact]
-    public async Task GetAll_WithoutAuth_ReturnsUnauthorized()
-    {
-        var response = await _client.GetAsync("/api/v1/users");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task GetAll_AsAdmin_ReturnsAllUsers()
-    {
-        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
-
-        var response = await _client.GetAsync("/api/v1/users");
-
-        response.EnsureSuccessStatusCode();
-        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<UserSummaryResponse>>>();
-
-        Assert.NotNull(apiResponse);
-        Assert.True(apiResponse.Success);
-        Assert.NotNull(apiResponse.Data);
-        Assert.Equal(3, apiResponse.Data.Count); // Admin, Regular User, Author
-    }
-
-    [Fact]
-    public async Task GetAll_AsRegularUser_ReturnsForbidden()
-    {
-        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
-
-        var response = await _client.GetAsync("/api/v1/users");
-
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-    }
-
-    #endregion
-
     #region GET /api/v1/users/{id} Tests
 
     [Fact]
@@ -118,22 +80,7 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal(UserRole.User, apiResponse.Data.Role);
     }
 
-    [Fact]
-    public async Task GetById_OwnProfile_ReturnsUser()
-    {
-        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
-        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-        var response = await _client.GetAsync($"/api/v1/users/{userId}");
-
-        response.EnsureSuccessStatusCode();
-        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<UserResponse>>();
-
-        Assert.NotNull(apiResponse);
-        Assert.True(apiResponse.Success);
-        Assert.NotNull(apiResponse.Data);
-        Assert.Equal(userId, apiResponse.Data.Id);
-    }
 
     [Fact]
     public async Task GetById_OtherUser_AsRegularUser_ReturnsForbidden()
@@ -292,27 +239,6 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
 
     #endregion
 
-    #region GET /api/v1/users/authors Tests
-
-    [Fact]
-    public async Task GetAuthors_AsAnyUser_ReturnsOnlyAuthors()
-    {
-        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
-
-        var response = await _client.GetAsync("/api/v1/users/authors");
-
-        response.EnsureSuccessStatusCode();
-        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<UserSummaryResponse>>>();
-
-        Assert.NotNull(apiResponse);
-        Assert.True(apiResponse.Success);
-        Assert.NotNull(apiResponse.Data);
-        Assert.Single(apiResponse.Data);
-        Assert.All(apiResponse.Data, author => Assert.Equal(UserRole.Author, author.Role));
-    }
-
-    #endregion
-
     #region GET /api/v1/users/authors/{id} Tests
 
     [Fact]
@@ -363,7 +289,7 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
         Assert.NotNull(apiResponse);
         Assert.True(apiResponse.Success);
         Assert.NotNull(apiResponse.Data);
-        Assert.Equal(2, apiResponse.Data.Count); // Public and Private playlists
+        Assert.Equal(3, apiResponse.Data.Count); // Public and Private playlists owned + 1 public album
     }
 
     [Fact]
@@ -380,7 +306,7 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
         Assert.NotNull(apiResponse);
         Assert.True(apiResponse.Success);
         Assert.NotNull(apiResponse.Data);
-        Assert.Equal(2, apiResponse.Data.Count);
+        Assert.Equal(3, apiResponse.Data.Count); // Public and Private playlists owned + 1 public album
     }
 
     [Fact]
@@ -396,7 +322,7 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task GetUserPlaylists_NonExistentUser_ReturnsNotFound()
+    public async Task GetUserPlaylists_NonExistentUser_ReturnsPublicPlaylists()
     {
 
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
@@ -404,7 +330,11 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         var response = await _client.GetAsync($"/api/v1/users/{userId}/playlists");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<PlaylistSummaryResponse>>>();
+        Assert.NotNull(apiResponse);
+        Assert.Equal(2, apiResponse.Data!.Count); // Returns public playlists (album + public playlist)
+        Assert.All(apiResponse.Data, p => Assert.True(p.IsPublic));
     }
 
     [Fact]

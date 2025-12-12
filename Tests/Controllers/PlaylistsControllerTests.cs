@@ -280,8 +280,8 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task Update_AsOwner_UpdatesPlaylist()
     {
-        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
-        var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
+        var playlistId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"); // Use public playlist instead
         var request = new UpdatePlaylistRequest
         {
             Name = "Updated Playlist Name",

@@ -12,8 +12,6 @@ public interface IPlaylistRepository
     Task<Playlist> CreateAsync(Playlist playlist);
     Task UpdateAsync(Playlist playlist);
     Task DeleteAsync(Guid id);
-    Task<bool> ExistsAsync(Guid id);
-    Task<bool> IsUserOwnerAsync(Guid playlistId, Guid userId);
     Task<int> AddSongToPlaylistAsync(Guid playlistId, Guid songId, int order);
     Task RemoveSongFromPlaylistAsync(Guid playlistId, Guid songId);
     Task<int> GetMaxSongOrderAsync(Guid playlistId);

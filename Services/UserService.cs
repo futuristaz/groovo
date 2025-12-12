@@ -8,11 +8,15 @@ namespace Groovo.Services
     {
         private readonly ILogger<UserService> _logger;
         private readonly IUserRepository _userRepository;
+        private readonly IPlaylistRepository _playlistRepository;
+        private readonly ISongRepository _songRepository;
 
-        public UserService(ILogger<UserService> logger, IUserRepository userRepository)
+        public UserService(ILogger<UserService> logger, IUserRepository userRepository, IPlaylistRepository playlistRepository, ISongRepository songRepository)
         {
             _logger = logger;
             _userRepository = userRepository;
+            _playlistRepository = playlistRepository;
+            _songRepository = songRepository;
         }
 
         public async Task<UserResponse?> GetUserByIdAsync(Guid id)
@@ -116,22 +120,15 @@ namespace Groovo.Services
         {
             try
             {
-                var user = await _userRepository.GetAuthorWithSongsAsync(authorId);
+                var songs = await _songRepository.GetByAuthorAsync(authorId, includeInactive: isAdmin);
 
-                if (user == null)
-                    return new List<SongSummaryResponse>();
-
-                var songs = user.SongAuthors
-                    .Where(sa => sa.Song.IsActive || sa.UserId == requestingUserId || isAdmin)
-                    .Select(sa => sa.Song)
-                    .OrderByDescending(s => s.ReleaseDate)
+                return songs
+                    .Where(s => s.IsActive || s.SongAuthors.Any(sa => sa.UserId == requestingUserId) || isAdmin)
                     .Select(s => new SongSummaryResponse(
                         s,
                         s.SongAuthors.Where(sa => sa.User.Role == UserRole.Author)
                             .Select(sa => sa.User.Name).ToList()
                     )).ToList();
-
-                return songs;
             }
             catch (Exception ex)
             {
@@ -144,13 +141,9 @@ namespace Groovo.Services
         {
             try
             {
-                var user = await _userRepository.GetUserWithPlaylistsAsync(userId);
+                var playlists = await _playlistRepository.GetByUserIdAsync(userId, onlyOwned: !showFullList);
 
-                if (user == null)
-                    return new List<PlaylistSummaryResponse>();
-
-                var playlists = user.PlaylistOwners
-                    .Select(po => po.Playlist)
+                return playlists
                     .Where(p => showFullList || p.IsPublic)
                     .OrderByDescending(p => p.CreatedAt)
                     .Select(p => new PlaylistSummaryResponse(
@@ -163,8 +156,6 @@ namespace Groovo.Services
                         p.TotalTime,
                         p.PlaylistSongs?.Count ?? 0
                     )).ToList();
-
-                return playlists;
             }
             catch (Exception ex)
             {

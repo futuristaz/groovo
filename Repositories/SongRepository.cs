@@ -13,18 +13,6 @@ public class SongRepository : ISongRepository
         _context = context;
     }
 
-    public async Task<List<Song>> GetAllAsync(bool includeInactive = false)
-    {
-        var query = _context.Songs.AsQueryable();
-
-        if (!includeInactive)
-        {
-            query = query.Where(s => s.IsActive);
-        }
-
-        return await query.ToListAsync();
-    }
-
     public async Task<Song?> GetByIdAsync(Guid id, bool includeInactive = false, bool includeAuthors = false, bool includePlaylistSongs = false)
     {
         var query = _context.Songs.AsQueryable();
@@ -47,24 +35,12 @@ public class SongRepository : ISongRepository
 
         return await query.FirstOrDefaultAsync(s => s.Id == id);
     }
-
-    public async Task<List<Song>> GetByAlbumAsync(Guid albumId, bool includeInactive = false)
-    {
-        var query = _context.Songs
-            .Where(s => s.Album == albumId);
-
-        if (!includeInactive)
-        {
-            query = query.Where(s => s.IsActive);
-        }
-
-        return await query.ToListAsync();
-    }
-
+    
     public async Task<List<Song>> GetByAuthorAsync(Guid authorId, bool includeInactive = false)
     {
         var query = _context.Songs
             .Include(s => s.SongAuthors)
+            .ThenInclude(sa => sa.User)
             .Where(s => s.SongAuthors.Any(sa => sa.UserId == authorId));
 
         if (!includeInactive)
@@ -72,7 +48,9 @@ public class SongRepository : ISongRepository
             query = query.Where(s => s.IsActive);
         }
 
-        return await query.ToListAsync();
+        return await query
+            .OrderByDescending(s => s.ReleaseDate)
+            .ToListAsync();
     }
 
     public async Task<Song> CreateAsync(Song song)
@@ -96,11 +74,6 @@ public class SongRepository : ISongRepository
             _context.Songs.Remove(song);
             await _context.SaveChangesAsync();
         }
-    }
-
-    public async Task<bool> ExistsAsync(Guid id)
-    {
-        return await _context.Songs.AnyAsync(s => s.Id == id);
     }
 
     public async Task<bool> ExistsByNameAndAlbumAsync(string name, Guid albumId, Guid? excludeId = null)

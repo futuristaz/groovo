@@ -114,17 +114,6 @@ public class PlaylistRepository : IPlaylistRepository
         }
     }
 
-    public async Task<bool> ExistsAsync(Guid id)
-    {
-        return await _context.Playlists.AnyAsync(p => p.Id == id);
-    }
-
-    public async Task<bool> IsUserOwnerAsync(Guid playlistId, Guid userId)
-    {
-        return await _context.PlaylistOwners
-            .AnyAsync(po => po.PlaylistId == playlistId && po.UserId == userId);
-    }
-
     public async Task<int> AddSongToPlaylistAsync(Guid playlistId, Guid songId, int order)
     {
         var playlistSong = new PlaylistSong

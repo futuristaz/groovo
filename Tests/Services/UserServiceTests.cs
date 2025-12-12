@@ -10,13 +10,17 @@ public class UserServiceTests
 {
     private readonly Mock<ILogger<UserService>> _loggerMock;
     private readonly Mock<IUserRepository> _userRepositoryMock;
+    private readonly Mock<IPlaylistRepository> _playlistRepositoryMock;
+    private readonly Mock<ISongRepository> _songRepositoryMock;
     private readonly UserService _service;
 
     public UserServiceTests()
     {
         _loggerMock = new Mock<ILogger<UserService>>();
         _userRepositoryMock = new Mock<IUserRepository>();
-        _service = new UserService(_loggerMock.Object, _userRepositoryMock.Object);
+        _playlistRepositoryMock = new Mock<IPlaylistRepository>();
+        _songRepositoryMock = new Mock<ISongRepository>();
+        _service = new UserService(_loggerMock.Object, _userRepositoryMock.Object, _playlistRepositoryMock.Object, _songRepositoryMock.Object);
     }
 
     [Fact]
@@ -154,20 +158,21 @@ public class UserServiceTests
     public async Task GetAuthorSongsAsync_Returns_Author_Songs()
     {
         var authorId = Guid.NewGuid();
-        var song = new Song { Id = Guid.NewGuid(), Name = "Track", IsActive = true };
-        var author = new User 
+        var userId = Guid.NewGuid();
+        var author = new User { Id = authorId, Name = "Auth", Role = UserRole.Author };
+        var song = new Song 
         { 
-            Id = authorId, 
-            Name = "Auth", 
-            Role = UserRole.Author,
+            Id = Guid.NewGuid(), 
+            Name = "Track", 
+            IsActive = true,
             SongAuthors = new List<SongAuthor>
             {
-                new SongAuthor { SongId = song.Id, UserId = authorId, Song = song }
+                new SongAuthor { SongId = Guid.NewGuid(), UserId = authorId, User = author }
             }
         };
 
-        _userRepositoryMock.Setup(r => r.GetAuthorWithSongsAsync(authorId))
-            .ReturnsAsync(author);
+        _songRepositoryMock.Setup(r => r.GetByAuthorAsync(authorId, false))
+            .ReturnsAsync(new List<Song> { song });
 
         var result = await _service.GetAuthorSongsAsync(authorId);
 
@@ -186,19 +191,9 @@ public class UserServiceTests
             IsPublic = true,
             CreatedAt = DateTime.UtcNow
         };
-        
-        var user = new User 
-        { 
-            Id = userId, 
-            Name = "Test",
-            PlaylistOwners = new List<PlaylistOwner>
-            {
-                new PlaylistOwner { PlaylistId = playlist.Id, UserId = userId, Playlist = playlist }
-            }
-        };
 
-        _userRepositoryMock.Setup(r => r.GetUserWithPlaylistsAsync(userId))
-            .ReturnsAsync(user);
+        _playlistRepositoryMock.Setup(r => r.GetByUserIdAsync(userId, false))
+            .ReturnsAsync(new List<Playlist> { playlist });
 
         var result = await _service.GetUserPlaylistsAsync(userId, showFullList: true);
 

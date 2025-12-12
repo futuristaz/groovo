@@ -33,42 +33,11 @@ public class UserRepository : IUserRepository
         return await query.FirstOrDefaultAsync();
     }
 
-    public async Task<List<User>> GetByRoleAsync(UserRole role)
-    {
-        return await _context.Users
-            .Where(u => u.Role == role)
-            .OrderBy(u => u.Name)
-            .ToListAsync();
-    }
-
     public async Task<List<User>> GetByIdsAsync(List<Guid> ids)
     {
         return await _context.Users
             .Where(u => ids.Contains(u.Id))
             .ToListAsync();
-    }
-
-    public async Task<User?> GetAuthorWithSongsAsync(Guid authorId)
-    {
-        return await _context.Users
-            .Include(u => u.SongAuthors)
-            .ThenInclude(sa => sa.Song)
-            .ThenInclude(s => s.SongAuthors)
-            .ThenInclude(sa => sa.User)
-            .FirstOrDefaultAsync(u => u.Id == authorId);
-    }
-
-    public async Task<User?> GetUserWithPlaylistsAsync(Guid userId)
-    {
-        return await _context.Users
-            .Include(u => u.PlaylistOwners)
-            .ThenInclude(po => po.Playlist)
-            .ThenInclude(p => p.PlaylistSongs)
-            .Include(u => u.PlaylistOwners)
-            .ThenInclude(po => po.Playlist)
-            .ThenInclude(p => p.PlaylistOwners)
-            .ThenInclude(po => po.User)
-            .FirstOrDefaultAsync(u => u.Id == userId);
     }
 
     public async Task<List<User>> SearchAsync(string query, UserRole? role = null)
