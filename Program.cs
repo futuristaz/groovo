@@ -55,6 +55,12 @@ public class Program
             });
         }
 
+        // Register repositories
+        builder.Services.AddScoped<Repositories.IPlaylistRepository, Repositories.PlaylistRepository>();
+        builder.Services.AddScoped<Repositories.ISongRepository, Repositories.SongRepository>();
+        builder.Services.AddScoped<Repositories.IUserRepository, Repositories.UserRepository>();
+        builder.Services.AddScoped<Repositories.IRefreshTokenRepository, Repositories.RefreshTokenRepository>();
+
         // Register services
         builder.Services.AddScoped<IJwtService, JwtService>();
         builder.Services.AddScoped<IAuthService, AuthService>();

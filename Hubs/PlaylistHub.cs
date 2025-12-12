@@ -1,41 +1,35 @@
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
-using Groovo.Data.Contexts;
-using Groovo.DTOs.Requests;
-using Groovo.DTOs.Responses;
-using Groovo.Models;
 using System.Security.Claims;
-using Microsoft.Extensions.Logging;
-using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Authorization;
 using Groovo.DTOs;
 using Groovo.Services.Hub;
+using Groovo.Repositories;
 
 namespace Groovo.Hubs;
 
 [Authorize(Roles = "User")]
 public class PlaylistHub : Hub
 {
-    private readonly ApplicationDbContext _dbContext;
     private readonly ILogger<PlaylistHub> _logger;
     private readonly IPlaybackStateStore<string, PlaybackState> _playbackStateStore;
     private readonly IUserPlaylistTracker<string, string> _userPlaylistTracker;
-    private readonly IPlaylistService _playlistService;
+    private readonly IPlaylistRepository _playlistRepository;
+    private readonly ISongRepository _songRepository;
     
 
     public PlaylistHub(
-        ApplicationDbContext dbContext,
         ILogger<PlaylistHub> logger,
         IUserPlaylistTracker<string, string> userPlaylistTracker,
         IPlaybackStateStore<string, PlaybackState> playbackStateStore,
-        IPlaylistService playlistService
+        IPlaylistRepository playlistRepository,
+        ISongRepository songRepository
     )
     {
-        _dbContext = dbContext;
         _logger = logger;
         _userPlaylistTracker = userPlaylistTracker;
         _playbackStateStore = playbackStateStore;
-        _playlistService = playlistService;
+        _playlistRepository = playlistRepository;
+        _songRepository = songRepository;
     }
 
     public override async Task OnConnectedAsync()
@@ -93,7 +87,7 @@ public class PlaylistHub : Hub
                 throw new HubException("Unauthorized: Invalid user token");
             }
 
-            if (!await _playlistService.CanAccessPlaylist(playlistId, userId))
+            if (!await _playlistRepository.CanUserAccessPlaylistAsync(playlistId, userId))
             {
                 throw new HubException("Unauthorized: Cannot access this playlist");
             }
@@ -197,7 +191,7 @@ public class PlaylistHub : Hub
             throw new HubException("No song specified to play");
         }
 
-        var songLength = await _playlistService.GetSongLength(songId.Value);
+        var songLength = await _songRepository.GetSongLengthAsync(songId.Value);
         if (songLength == 0)
         {
             throw new HubException("Song not found");
@@ -205,7 +199,7 @@ public class PlaylistHub : Hub
 
         try
         {
-            var nextSongId = await _playlistService.GetNextSongId(Guid.Parse(playlistId), songId.Value);
+            var nextSongId = await _playlistRepository.GetNextSongIdAsync(Guid.Parse(playlistId), songId.Value);
             
             var newState = _playbackStateStore.TryUpdate(playlistId, ps =>
             {

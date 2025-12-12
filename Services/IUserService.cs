@@ -5,8 +5,6 @@ namespace Groovo.Services
 {
     public interface IUserService
     {
-        Task<List<UserSummaryResponse>> GetAllUsersAsync(UserRole? role = null);
-        Task<List<UserSummaryResponse>> GetAuthorsAsync();
         Task<UserResponse?> GetUserByIdAsync(Guid id);
         Task<bool> UpdateUserAsync(Guid id, string name, string? bio, string? imageUrl);
         Task<bool> DeleteUserAsync(Guid id);

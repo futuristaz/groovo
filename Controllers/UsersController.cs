@@ -22,42 +22,6 @@ namespace Groovo.Controllers
             _logger = logger;
         }
 
-        /// <summary>GET: /api/v1/users</summary>
-        /// <returns>List of users</returns>
-        [HttpGet]
-        [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<IEnumerable<UserSummaryResponse>>> GetAll([FromQuery] UserRole? role = null)
-        {
-            try
-            {
-                var userSummaries = await _userService.GetAllUsersAsync(role);
-                return Ok(userSummaries);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error retrieving users");
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
-        /// <summary>GET: /api/v1/users/authors</summary>
-        /// <returns>List of authors (users with Role = Author)</returns>
-        [HttpGet("authors")]
-        [Authorize(Roles = "Admin")]
-        public async Task<ActionResult<IEnumerable<UserSummaryResponse>>> GetAuthors()
-        {
-            try
-            {
-                var authorSummaries = await _userService.GetAuthorsAsync();
-                return Ok(authorSummaries);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error retrieving authors");
-                return StatusCode(500, "Internal server error");
-            }
-        }
-
         /// <summary>GET: /api/v1/users/{id}</summary>
         /// <returns>Specific user or 404 if not found</returns>
         [HttpGet("{id:guid}")]

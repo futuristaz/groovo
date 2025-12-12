@@ -32,50 +32,6 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task GetAllUsersAsync_Returns_All_Users()
-    {
-        _context.Users.AddRange(
-            new User { Id = Guid.NewGuid(), Name = "A", Role = UserRole.Author },
-            new User { Id = Guid.NewGuid(), Name = "B", Role = UserRole.User }
-        );
-        await _context.SaveChangesAsync();
-
-        var result = await _service.GetAllUsersAsync();
-
-        Assert.Equal(2, result.Count);
-    }
-
-    [Fact]
-    public async Task GetAllUsersAsync_Filters_By_Role()
-    {
-        _context.Users.AddRange(
-            new User { Id = Guid.NewGuid(), Name = "A", Role = UserRole.Author },
-            new User { Id = Guid.NewGuid(), Name = "B", Role = UserRole.User }
-        );
-        await _context.SaveChangesAsync();
-
-        var result = await _service.GetAllUsersAsync(UserRole.Author);
-
-        Assert.Single(result);
-        Assert.Equal(UserRole.Author, result[0].Role);
-    }
-
-    [Fact]
-    public async Task GetAuthorsAsync_Returns_Only_Authors()
-    {
-        _context.Users.AddRange(
-            new User { Id = Guid.NewGuid(), Name = "A", Role = UserRole.Author },
-            new User { Id = Guid.NewGuid(), Name = "B", Role = UserRole.User }
-        );
-        await _context.SaveChangesAsync();
-
-        var result = await _service.GetAuthorsAsync();
-
-        Assert.Single(result);
-        Assert.Equal("A", result[0].Name);
-    }
-
-    [Fact]
     public async Task GetUserByIdAsync_Returns_User()
     {
         var id = Guid.NewGuid();

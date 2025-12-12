@@ -1,58 +1,25 @@
-using Microsoft.EntityFrameworkCore;
-using Groovo.Data.Contexts;
 using Groovo.DTOs.Responses;
 using Groovo.Models;
+using Groovo.Repositories;
 
 namespace Groovo.Services
 {
     public class UserService : IUserService
     {
-        private readonly ApplicationDbContext _context;
         private readonly ILogger<UserService> _logger;
+        private readonly IUserRepository _userRepository;
 
-        public UserService(ApplicationDbContext context, ILogger<UserService> logger)
+        public UserService(ILogger<UserService> logger, IUserRepository userRepository)
         {
-            _context = context;
             _logger = logger;
+            _userRepository = userRepository;
         }
-
-        public async Task<List<UserSummaryResponse>> GetAllUsersAsync(UserRole? role = null)
-        {
-            try
-            {
-                var query = _context.Users.AsQueryable();
-
-                if (role.HasValue)
-                {
-                    query = query.Where(u => u.Role == role.Value);
-                }
-
-                var users = await query
-                    .OrderBy(u => u.Name)
-                    .ToListAsync();
-
-                return users.Select(u => new UserSummaryResponse(
-                    u.Id,
-                    u.Name,
-                    u.ImageUrl ?? "",
-                    u.Role
-                )).ToList();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error retrieving users");
-                throw;
-            }
-        }
-
-        public async Task<List<UserSummaryResponse>> GetAuthorsAsync() => await GetAllUsersAsync(UserRole.Author);  
 
         public async Task<UserResponse?> GetUserByIdAsync(Guid id)
         {
             try
             {
-                var user = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Id == id);
+                var user = await _userRepository.GetByAsync(id: id);
 
                 if (user == null)
                     return null;
@@ -78,7 +45,7 @@ namespace Groovo.Services
         {
             try
             {
-                var existing = await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
+                var existing = await _userRepository.GetByAsync(id: id);
                 if (existing == null)
                     return false;
 
@@ -86,7 +53,7 @@ namespace Groovo.Services
                 existing.Bio = bio ?? "";
                 existing.ImageUrl = imageUrl ?? "";
 
-                await _context.SaveChangesAsync();
+                await _userRepository.UpdateAsync(existing);
 
                 _logger.LogInformation("Updated user {UserId}: {UserName}", id, existing.Name);
 
@@ -103,27 +70,13 @@ namespace Groovo.Services
         {
             try
             {
-                var user = await _context.Users
-                    .Include(u => u.SongAuthors)
-                    .Include(u => u.PlaylistOwners)
-                    .FirstOrDefaultAsync(u => u.Id == id);
+                var user = await _userRepository.GetByAsync(id: id);
 
                 if (user == null)
                     return false;
 
-                if (user.SongAuthors.Any())
-                {
-                    _context.SongAuthors.RemoveRange(user.SongAuthors);
-                }
-
-                if (user.PlaylistOwners.Any())
-                {
-                    _context.PlaylistOwners.RemoveRange(user.PlaylistOwners);
-                }
-
-                _context.Users.Remove(user);
-
-                await _context.SaveChangesAsync();
+                // Delete user - related entities (SongAuthors, PlaylistOwners, RefreshTokens) will be cascade deleted
+                await _userRepository.DeleteAsync(id);
 
                 _logger.LogInformation("Deleted user {UserId}: {UserName} and all related entries", id, user.Name);
 
@@ -140,11 +93,9 @@ namespace Groovo.Services
         {
             try
             {
-                var user = await _context.Users
-                    .Where(u => u.Id == id && u.Role == UserRole.Author)
-                    .FirstOrDefaultAsync();
+                var user = await _userRepository.GetByAsync(id: id);
 
-                if (user == null)
+                if (user == null || user.Role != UserRole.Author)
                     return null;
 
                 return new AuthorResponse(
@@ -165,12 +116,7 @@ namespace Groovo.Services
         {
             try
             {
-                var user = await _context.Users
-                    .Include(u => u.SongAuthors)
-                    .ThenInclude(sa => sa.Song)
-                    .ThenInclude(s => s.SongAuthors)
-                    .ThenInclude(sa => sa.User)
-                    .FirstOrDefaultAsync(u => u.Id == authorId);
+                var user = await _userRepository.GetAuthorWithSongsAsync(authorId);
 
                 if (user == null)
                     return new List<SongSummaryResponse>();
@@ -198,15 +144,7 @@ namespace Groovo.Services
         {
             try
             {
-                var user = await _context.Users
-                    .Include(u => u.PlaylistOwners)
-                    .ThenInclude(po => po.Playlist)
-                    .ThenInclude(p => p.PlaylistSongs)
-                    .Include(u => u.PlaylistOwners)
-                    .ThenInclude(po => po.Playlist)
-                    .ThenInclude(p => p.PlaylistOwners)
-                    .ThenInclude(po => po.User)
-                    .FirstOrDefaultAsync(u => u.Id == userId);
+                var user = await _userRepository.GetUserWithPlaylistsAsync(userId);
 
                 if (user == null)
                     return new List<PlaylistSummaryResponse>();
@@ -239,18 +177,7 @@ namespace Groovo.Services
         {
             try
             {
-                var queryable = _context.Users
-                    .Where(u => u.Role != UserRole.Admin && (u.Name.Contains(query) ||
-                           (u.Bio != null && u.Bio.Contains(query))));
-
-                if (role.HasValue)
-                {
-                    queryable = queryable.Where(u => u.Role == role.Value);
-                }
-
-                var users = await queryable
-                    .OrderBy(u => u.Name)
-                    .ToListAsync();
+                var users = await _userRepository.SearchAsync(query, role);
 
                 return users.Select(u => new UserSummaryResponse(
                     u.Id,

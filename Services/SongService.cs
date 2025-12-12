@@ -1,34 +1,38 @@
-using Microsoft.EntityFrameworkCore;
-using Groovo.Data.Contexts;
 using Groovo.DTOs;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
 using Groovo.Models;
+using Groovo.Repositories;
 
 namespace Groovo.Services
 {
     public class SongService : ISongService
     {
-        private readonly ApplicationDbContext _context;
         private readonly ILogger<SongService> _logger;
         private readonly ISongFileService _songFileService;
+        private readonly ISongRepository _songRepository;
+        private readonly IPlaylistRepository _playlistRepository;
+        private readonly IUserRepository _userRepository;
 
-        public SongService(ApplicationDbContext context, ILogger<SongService> logger, ISongFileService songFileService)
+        public SongService(
+            ILogger<SongService> logger, 
+            ISongFileService songFileService,
+            ISongRepository songRepository,
+            IPlaylistRepository playlistRepository,
+            IUserRepository userRepository)
         {
-            _context = context;
             _logger = logger;
             _songFileService = songFileService;
+            _songRepository = songRepository;
+            _playlistRepository = playlistRepository;
+            _userRepository = userRepository;
         }
 
         public async Task<SongResponse?> GetSongByIdAsync(Guid id)
         {
             try
             {
-                var song = await _context.Songs
-                    .Include(s => s.SongAuthors)
-                    .ThenInclude(sa => sa.User)
-                    .Where(s => s.IsActive && s.Id == id)
-                    .FirstOrDefaultAsync();
+                var song = await _songRepository.GetByIdAsync(id, includeAuthors: true);
 
                 if (song == null)
                     return null;
@@ -71,17 +75,14 @@ namespace Groovo.Services
                     return (null, $"Image file not found for upload ID: {request.ImageId}");
                 }
 
-                var album = await _context.Playlists
-                    .Where(p => p.Id == request.Album && p.IsAlbum)
-                    .FirstOrDefaultAsync();
+                var album = await _playlistRepository.GetByIdAsync(request.Album);
 
-                if (album == null)
+                if (album == null || !album.IsAlbum)
                 {
                     return (null, $"Album with ID {request.Album} not found or is not an album.");
                 }
 
-                var duplicateSong = await _context.Songs
-                    .AnyAsync(s => s.Name == request.Name && s.Album == request.Album);
+                var duplicateSong = await _songRepository.ExistsByNameAndAlbumAsync(request.Name, request.Album);
                 if (duplicateSong)
                 {
                     return (null, $"A song with the name '{request.Name}' already exists in this album.");
@@ -90,10 +91,11 @@ namespace Groovo.Services
                 List<Guid> validatedAuthorIds = new List<Guid>();
                 if (request.AuthorIds != null && request.AuthorIds.Any())
                 {
-                    var existingAuthorIds = await _context.Users
-                        .Where(u => request.AuthorIds.Contains(u.Id) && u.Role == UserRole.Author)
+                    var existingAuthors = await _userRepository.GetByIdsAsync(request.AuthorIds);
+                    var existingAuthorIds = existingAuthors
+                        .Where(u => u.Role == UserRole.Author)
                         .Select(u => u.Id)
-                        .ToListAsync();
+                        .ToList();
 
                     var invalidAuthorIds = request.AuthorIds.Except(existingAuthorIds).ToList();
                     if (invalidAuthorIds.Any())
@@ -162,8 +164,6 @@ namespace Groovo.Services
                     IsActive = true
                 };
 
-                _context.Songs.Add(newSong);
-
                 if (validatedAuthorIds.Any())
                 {
                     var songAuthors = validatedAuthorIds.Select(authorId => new SongAuthor
@@ -172,31 +172,16 @@ namespace Groovo.Services
                         UserId = authorId
                     }).ToList();
 
-                    _context.SongAuthors.AddRange(songAuthors);
+                    newSong.SongAuthors = songAuthors;
                 }
 
-                var playlistSong = new PlaylistSong
-                {
-                    PlaylistId = request.Album,
-                    SongId = newSong.Id,
-                    Order = 0,
-                    AddedAt = DateTime.UtcNow
-                };
+                await _songRepository.CreateAsync(newSong);
 
-                // Get the current max order in the album and increment
-                var maxOrder = await _context.PlaylistSongs
-                    .Where(ps => ps.PlaylistId == request.Album)
-                    .MaxAsync(ps => (int?)ps.Order) ?? -1;
-                playlistSong.Order = maxOrder + 1;
+                // Get the current max order in the album and add song
+                var maxOrder = await _playlistRepository.GetMaxSongOrderAsync(request.Album);
+                await _playlistRepository.AddSongToPlaylistAsync(request.Album, newSong.Id, maxOrder + 1);
 
-                _context.PlaylistSongs.Add(playlistSong);
-
-                await _context.SaveChangesAsync();
-
-                var createdSong = await _context.Songs
-                    .Include(s => s.SongAuthors)
-                    .ThenInclude(sa => sa.User)
-                    .FirstOrDefaultAsync(s => s.Id == newSong.Id);
+                var createdSong = await _songRepository.GetByIdAsync(newSong.Id, includeAuthors: true);
 
                 if (createdSong == null)
                 {
@@ -229,49 +214,31 @@ namespace Groovo.Services
         {
             try
             {
-                var existing = await _context.Songs
-                    .Include(s => s.SongAuthors)
-                    .FirstOrDefaultAsync(s => s.Id == id && (isAdmin ||
-                        s.SongAuthors.Any(sa => sa.UserId == userId)));
+                var existing = await _songRepository.GetByIdAsync(id, includeInactive: true, includeAuthors: true);
 
                 if (existing == null)
+                    return (false, null);
+
+                // Check permissions
+                if (!isAdmin && !existing.SongAuthors.Any(sa => sa.UserId == userId))
                     return (false, null);
 
                 if (request.Album.HasValue)
                 {
                     // Check if album exists, it is album and author owns it
-                    var album = await _context.Playlists
-                        .Include(p => p.PlaylistOwners)
-                        .Where(p => p.Id == request.Album.Value && p.IsAlbum &&
-                            (isAdmin || p.PlaylistOwners.Any(po => po.UserId == userId)))
-                        .FirstOrDefaultAsync();
+                    var album = await _playlistRepository.GetByIdAsync(request.Album.Value, includeOwners: true);
 
-                    if (album == null)
+                    if (album == null || !album.IsAlbum)
+                        return (false, "Invalid album ID or you do not have permission to assign this album.");
+
+                    if (!isAdmin && !album.PlaylistOwners.Any(po => po.UserId == userId))
                         return (false, "Invalid album ID or you do not have permission to assign this album.");
 
                     if (existing.Album != request.Album.Value)
                     {
-                        var oldPlaylistSong = await _context.PlaylistSongs
-                            .FirstOrDefaultAsync(ps => ps.PlaylistId == existing.Album && ps.SongId == id);
-                        if (oldPlaylistSong != null)
-                        {
-                            _context.PlaylistSongs.Remove(oldPlaylistSong);
-                        }
-
-
-                        var maxOrder = await _context.PlaylistSongs
-                            .Where(ps => ps.PlaylistId == request.Album.Value)
-                            .MaxAsync(ps => (int?)ps.Order) ?? -1;
-
-                        var newPlaylistSong = new PlaylistSong
-                        {
-                            PlaylistId = request.Album.Value,
-                            SongId = id,
-                            Order = maxOrder + 1,
-                            AddedAt = DateTime.UtcNow
-                        };
-
-                        _context.PlaylistSongs.Add(newPlaylistSong);
+                        await _playlistRepository.RemoveSongFromPlaylistAsync(existing.Album, id);
+                        var maxOrder = await _playlistRepository.GetMaxSongOrderAsync(request.Album.Value);
+                        await _playlistRepository.AddSongToPlaylistAsync(request.Album.Value, id, maxOrder + 1);
                     }
 
                     existing.Album = request.Album.Value;
@@ -292,7 +259,7 @@ namespace Groovo.Services
                 if (request.ReleaseDate.HasValue)
                     existing.ReleaseDate = request.ReleaseDate.Value;
 
-                await _context.SaveChangesAsync();
+                await _songRepository.UpdateAsync(existing);
 
                 _logger.LogInformation("Updated song {SongId}: {SongName}", id, existing.Name);
 
@@ -309,29 +276,17 @@ namespace Groovo.Services
         {
             try
             {
-                var song = await _context.Songs
-                    .Where(s => s.Id == id && (isAdmin ||
-                        s.SongAuthors.Any(sa => sa.UserId == userId)))
-                    .Include(s => s.SongAuthors)
-                    .Include(s => s.PlaylistSongs)
-                    .FirstOrDefaultAsync();
+                var song = await _songRepository.GetByIdAsync(id, includeInactive: true, includeAuthors: true);
 
                 if (song == null)
                     return false;
 
-                if (song.SongAuthors.Any())
-                {
-                    _context.SongAuthors.RemoveRange(song.SongAuthors);
-                }
+                // Check permissions
+                if (!isAdmin && !song.SongAuthors.Any(sa => sa.UserId == userId))
+                    return false;
 
-                if (song.PlaylistSongs.Any())
-                {
-                    _context.PlaylistSongs.RemoveRange(song.PlaylistSongs);
-                }
-
-                _context.Songs.Remove(song);
-
-                await _context.SaveChangesAsync();
+                // Delete song - related entities (SongAuthors, PlaylistSongs) will be cascade deleted
+                await _songRepository.DeleteAsync(id);
 
                 // Delete associated files from storage
                 if (!string.IsNullOrWhiteSpace(song.AudioUrl))
@@ -367,16 +322,7 @@ namespace Groovo.Services
         {
             try
             {
-                var songs = await _context.Songs
-                    .Include(s => s.SongAuthors)
-                    .ThenInclude(sa => sa.User)
-                    .Where(s => s.IsActive && (
-                        s.Name.Contains(query) ||
-                        s.Genre.Contains(query) ||
-                        s.SongAuthors.Any(sa => sa.User.Name.Contains(query))
-                    ))
-                    .OrderBy(s => s.Name)
-                    .ToListAsync();
+                var songs = await _songRepository.SearchAsync(query);
 
                 return songs.Select(s => new SongSummaryResponse(
                     s,

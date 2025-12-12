@@ -1,15 +1,16 @@
-using Microsoft.EntityFrameworkCore;
-using Groovo.Data.Contexts;
+using Groovo.Repositories;
 
 namespace Groovo.Services.Hub;
 
 public class PlaylistService : IPlaylistService
 {
-    private readonly ApplicationDbContext _dbContext;
+    private readonly IPlaylistRepository _playlistRepository;
+    private readonly ISongRepository _songRepository;
 
-    public PlaylistService(ApplicationDbContext dbContext)
+    public PlaylistService(IPlaylistRepository playlistRepository, ISongRepository songRepository)
     {
-        _dbContext = dbContext;
+        _playlistRepository = playlistRepository;
+        _songRepository = songRepository;
     }
 
     /// <summary>
@@ -17,12 +18,7 @@ public class PlaylistService : IPlaylistService
     /// </summary>
     public async Task<bool> CanAccessPlaylist(Guid playlistId, Guid userId)
     {
-        var playlist = await _dbContext.Playlists
-            .Include(p => p.PlaylistOwners)
-            .Where(p => p.Id == playlistId && (p.IsPublic || p.PlaylistOwners.Any(po => po.UserId == userId)))
-            .FirstOrDefaultAsync();
-
-        return playlist != null;
+        return await _playlistRepository.CanUserAccessPlaylistAsync(playlistId, userId);
     }
 
     /// <summary>
@@ -32,23 +28,7 @@ public class PlaylistService : IPlaylistService
     /// <param name="currentSongId">The current song ID</param>
     public async Task<Guid?> GetNextSongId(Guid playlistId, Guid currentSongId)
     {
-        var currentSongOrder = await _dbContext.PlaylistSongs
-            .Where(ps => ps.PlaylistId == playlistId && ps.SongId == currentSongId && ps.Song.IsActive)
-            .Select(ps => (int?)ps.Order)
-            .FirstOrDefaultAsync();
-
-        if (currentSongOrder == null)
-        {
-            return null;
-        }
-
-        var nextSong = await _dbContext.PlaylistSongs
-            .Where(ps => ps.PlaylistId == playlistId && ps.Order > currentSongOrder && ps.Song.IsActive)
-            .OrderBy(ps => ps.Order)
-            .Select(ps => ps.SongId)
-            .FirstOrDefaultAsync();
-
-        return nextSong == Guid.Empty ? null : nextSong;
+        return await _playlistRepository.GetNextSongIdAsync(playlistId, currentSongId);
     }
 
     /// <summary>
@@ -57,11 +37,6 @@ public class PlaylistService : IPlaylistService
     /// <param name="songId">The song ID</param>
     public async Task<int> GetSongLength(Guid songId)
     {
-        var songLength = await _dbContext.Songs
-            .Where(s => s.Id == songId && s.IsActive)
-            .Select(s => s.Length)
-            .FirstOrDefaultAsync();
-
-        return songLength;
+        return await _songRepository.GetSongLengthAsync(songId);
     }
 }
