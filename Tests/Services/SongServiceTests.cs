@@ -1,45 +1,44 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
-using Xunit;
-using Groovo.Data.Contexts;
 using Groovo.Models;
 using Groovo.DTOs.Requests;
-using Groovo.DTOs.Responses;
 using Groovo.Services;
+using Groovo.Repositories;
 
 namespace Groovo.Tests.Services;
 
 public class SongServiceTests
 {
-    private readonly ApplicationDbContext _context;
     private readonly Mock<ILogger<SongService>> _loggerMock;
     private readonly Mock<ISongFileService> _fileServiceMock;
+    private readonly Mock<ISongRepository> _songRepositoryMock;
+    private readonly Mock<IPlaylistRepository> _playlistRepositoryMock;
+    private readonly Mock<IUserRepository> _userRepositoryMock;
     private readonly SongService _service;
 
     public SongServiceTests()
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-
-        _context = new ApplicationDbContext(options);
         _loggerMock = new Mock<ILogger<SongService>>();
         _fileServiceMock = new Mock<ISongFileService>();
+        _songRepositoryMock = new Mock<ISongRepository>();
+        _playlistRepositoryMock = new Mock<IPlaylistRepository>();
+        _userRepositoryMock = new Mock<IUserRepository>();
 
-        _service = new SongService(_context, _loggerMock.Object, _fileServiceMock.Object);
+        _service = new SongService(
+            _loggerMock.Object, 
+            _fileServiceMock.Object,
+            _songRepositoryMock.Object,
+            _playlistRepositoryMock.Object,
+            _userRepositoryMock.Object);
     }
 
     [Fact]
     public async Task GetSongByIdAsync_ReturnsSong_WhenSongExists()
     {
         var song = new Song { Id = Guid.NewGuid(), Name = "Test Song", IsActive = true };
-        _context.Songs.Add(song);
-        await _context.SaveChangesAsync();
+        
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, false, false, false))
+            .ReturnsAsync(song);
 
         var result = await _service.GetSongByIdAsync(song.Id);
 
@@ -50,7 +49,12 @@ public class SongServiceTests
     [Fact]
     public async Task GetSongByIdAsync_ReturnsNull_WhenSongDoesNotExist()
     {
-        var result = await _service.GetSongByIdAsync(Guid.NewGuid());
+        var songId = Guid.NewGuid();
+        
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(songId, false, false, false))
+            .ReturnsAsync((Song?)null);
+            
+        var result = await _service.GetSongByIdAsync(songId);
         Assert.Null(result);
     }
 
@@ -58,8 +62,9 @@ public class SongServiceTests
     public async Task CreateSongAsync_ReturnsError_WhenAudioFileMissing()
     {
         var album = new Playlist { Id = Guid.NewGuid(), Name = "Album", IsAlbum = true };
-        _context.Playlists.Add(album);
-        await _context.SaveChangesAsync();
+        
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(album.Id, false, false))
+            .ReturnsAsync(album);
 
         var request = new CreateSongRequest
         {
@@ -83,8 +88,9 @@ public class SongServiceTests
     public async Task CreateSongAsync_ReturnsError_WhenImageFileMissing()
     {
         var album = new Playlist { Id = Guid.NewGuid(), Name = "Album", IsAlbum = true };
-        _context.Playlists.Add(album);
-        await _context.SaveChangesAsync();
+        
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(album.Id, false, false))
+            .ReturnsAsync(album);
 
         var request = new CreateSongRequest
         {
@@ -110,8 +116,9 @@ public class SongServiceTests
     public async Task CreateSongAsync_ReturnsSong_WhenValid()
     {
         var album = new Playlist { Id = Guid.NewGuid(), Name = "Album", IsAlbum = true };
-        _context.Playlists.Add(album);
-        await _context.SaveChangesAsync();
+        
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(album.Id, false, false))
+            .ReturnsAsync(album);
 
         var request = new CreateSongRequest
         {
@@ -121,6 +128,14 @@ public class SongServiceTests
             Album = album.Id,
             AuthorIds = new List<Guid>()
         };
+
+        Song? capturedSong = null;
+        _songRepositoryMock.Setup(r => r.CreateAsync(It.IsAny<Song>()))
+            .Callback<Song>(s => capturedSong = s)
+            .ReturnsAsync((Song s) => s);
+
+        _userRepositoryMock.Setup(r => r.GetByIdsAsync(It.IsAny<List<Guid>>()))
+            .ReturnsAsync(new List<User>());
 
         _fileServiceMock.Setup(f => f.FileExistsAsync(It.IsAny<string>())).ReturnsAsync(true);
         _fileServiceMock.Setup(f => f.GetAudioDurationAsync(It.IsAny<string>())).ReturnsAsync(180);
@@ -138,8 +153,14 @@ public class SongServiceTests
     public async Task UpdateSongAsync_UpdatesSong_WhenValid()
     {
         var song = new Song { Id = Guid.NewGuid(), Name = "Old Name", IsActive = true };
-        _context.Songs.Add(song);
-        await _context.SaveChangesAsync();
+        
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, false, false, false))
+            .ReturnsAsync(song);
+
+        Song? updatedSong = null;
+        _songRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<Song>()))
+            .Callback<Song>(s => updatedSong = s)
+            .Returns(Task.CompletedTask);
 
         var request = new UpdateSongRequest
         {
@@ -150,8 +171,6 @@ public class SongServiceTests
 
         Assert.True(success);
         Assert.Null(error);
-
-        var updatedSong = await _context.Songs.FindAsync(song.Id);
         Assert.Equal("Updated Name", updatedSong!.Name);
     }
 
@@ -166,8 +185,12 @@ public class SongServiceTests
             Picture = "image.png",
             IsActive = true
         };
-        _context.Songs.Add(song);
-        await _context.SaveChangesAsync();
+        
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, false, false, false))
+            .ReturnsAsync(song);
+
+        _songRepositoryMock.Setup(r => r.DeleteAsync(song.Id))
+            .Returns(Task.CompletedTask);
 
         _fileServiceMock.Setup(f => f.DeleteFileAsync("audio.mp3")).ReturnsAsync(true);
         _fileServiceMock.Setup(f => f.DeleteFileAsync("image.png")).ReturnsAsync(true);
@@ -175,8 +198,7 @@ public class SongServiceTests
         var result = await _service.DeleteSongAsync(song.Id, isAdmin: true);
 
         Assert.True(result);
-        var deleted = await _context.Songs.FindAsync(song.Id);
-        Assert.Null(deleted);
+        _songRepositoryMock.Verify(r => r.DeleteAsync(song.Id), Times.Once);
     }
 
     [Fact]
@@ -184,8 +206,9 @@ public class SongServiceTests
     {
         var song1 = new Song { Id = Guid.NewGuid(), Name = "Rock Song", Genre = "Rock", IsActive = true };
         var song2 = new Song { Id = Guid.NewGuid(), Name = "Jazz Song", Genre = "Jazz", IsActive = true };
-        _context.Songs.AddRange(song1, song2);
-        await _context.SaveChangesAsync();
+        
+        _songRepositoryMock.Setup(r => r.SearchAsync("Rock"))
+            .ReturnsAsync(new List<Song> { song1 });
 
         var results = await _service.SearchSongsAsync("Rock");
 
