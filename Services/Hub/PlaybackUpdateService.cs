@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Groovo.DTOs;
 using Groovo.Hubs;
+using Groovo.Repositories;
 
 namespace Groovo.Services.Hub;
 
@@ -52,7 +53,8 @@ public class PlaybackUpdateService : BackgroundService
     private async Task UpdatePlaybackStates(CancellationToken stoppingToken)
     {
         using var scope = _serviceProvider.CreateScope();
-        var playlistService = scope.ServiceProvider.GetRequiredService<IPlaylistService>();
+        var playlistRepository = scope.ServiceProvider.GetRequiredService<IPlaylistRepository>();
+        var songRepository = scope.ServiceProvider.GetRequiredService<ISongRepository>();
 
         var activeStates = _playbackStateStore.GetAllActiveStates();
 
@@ -75,10 +77,10 @@ public class PlaybackUpdateService : BackgroundService
                 {
                     if (state.NextSongId.HasValue)
                     {
-                        var nextSongLength = await playlistService.GetSongLength(state.NextSongId.Value);
+                        var nextSongLength = await songRepository.GetSongLengthAsync(state.NextSongId.Value);
                         if (nextSongLength > 0)
                         {
-                            var followingSongId = await playlistService.GetNextSongId(Guid.Parse(playlistId), state.NextSongId.Value);
+                            var followingSongId = await playlistRepository.GetNextSongIdAsync(Guid.Parse(playlistId), state.NextSongId.Value);
                             
                             var updatedState = _playbackStateStore.TryUpdate(playlistId, ps =>
                             {
