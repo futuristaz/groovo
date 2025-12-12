@@ -12,10 +12,10 @@ namespace Groovo.Controllers
     [ApiVersion("1.0")]
     public class PlaylistsController : ControllerBase
     {
-        private readonly IPlaylistManagementService _playlistService;
+        private readonly IPlaylistService _playlistService;
         private readonly ILogger<PlaylistsController> _logger;
 
-        public PlaylistsController(IPlaylistManagementService playlistService, ILogger<PlaylistsController> logger)
+        public PlaylistsController(IPlaylistService playlistService, ILogger<PlaylistsController> logger)
         {
             _playlistService = playlistService;
             _logger = logger;

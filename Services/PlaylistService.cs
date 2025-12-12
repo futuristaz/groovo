@@ -7,16 +7,16 @@ using Groovo.Repositories;
 
 namespace Groovo.Services
 {
-    public class PlaylistManagementService : IPlaylistManagementService
+    public class PlaylistService : IPlaylistService
     {
-        private readonly ILogger<PlaylistManagementService> _logger;
+        private readonly ILogger<PlaylistService> _logger;
         private readonly IHubContext<PlaylistHub> _hub;
         private readonly IPlaylistRepository _playlistRepository;
         private readonly ISongRepository _songRepository;
         private readonly IUserRepository _userRepository;
 
-        public PlaylistManagementService(
-            ILogger<PlaylistManagementService> logger, 
+        public PlaylistService(
+            ILogger<PlaylistService> logger, 
             IHubContext<PlaylistHub> hub,
             IPlaylistRepository playlistRepository,
             ISongRepository songRepository,

@@ -16,24 +16,24 @@ using System.Threading.Tasks;
 
 namespace Groovo.Tests.Services;
 
-public class PlaylistManagementServiceTests : IDisposable
+public class PlaylistServiceTests : IDisposable
 {
     private readonly ApplicationDbContext _context;
-    private readonly Mock<ILogger<PlaylistManagementService>> _mockLogger;
+    private readonly Mock<ILogger<PlaylistService>> _mockLogger;
     private readonly Mock<IHubContext<PlaylistHub>> _mockHub;
-    private readonly PlaylistManagementService _service;
+    private readonly PlaylistService _service;
 
-    public PlaylistManagementServiceTests()
+    public PlaylistServiceTests()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
 
         _context = new ApplicationDbContext(options);
-        _mockLogger = new Mock<ILogger<PlaylistManagementService>>();
+        _mockLogger = new Mock<ILogger<PlaylistService>>();
         _mockHub = new Mock<IHubContext<PlaylistHub>>();
 
-        _service = new PlaylistManagementService(_context, _mockLogger.Object, _mockHub.Object);
+        _service = new PlaylistService(_context, _mockLogger.Object, _mockHub.Object);
     }
 
     public void Dispose()

@@ -67,7 +67,7 @@ public class Program
         builder.Services.AddScoped<IAuthorService, AuthorService>();
         builder.Services.AddScoped<IUserService, UserService>();
         builder.Services.AddScoped<ISongService, SongService>();
-        builder.Services.AddScoped<IPlaylistManagementService, PlaylistManagementService>();
+        builder.Services.AddScoped<IPlaylistService, PlaylistService>();
         builder.Services.AddScoped<IPasswordHasher<Models.User>, PasswordHasher<Models.User>>();
         
         // Register TUS services
