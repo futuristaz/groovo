@@ -3,7 +3,7 @@ using Groovo.DTOs.Responses;
 
 namespace Groovo.Services
 {
-    public interface IPlaylistManagementService
+    public interface IPlaylistService
     {
         Task<List<PlaylistSummaryResponse>> GetAllPlaylistsAsync(bool isAdmin);
         Task<PlaylistResponse?> GetPlaylistByIdAsync(Guid id, Guid? userId = null, bool isAdmin = false);

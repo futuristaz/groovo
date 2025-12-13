@@ -1,12 +1,9 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
-using Groovo.Data.Contexts;
 using Groovo.Models;
 using Groovo.DTOs.Requests;
-using Groovo.DTOs.Responses;
 using Groovo.DTOs.InternalResponses;
 using Groovo.Exceptions;
-using Microsoft.AspNetCore.Http;
+using Groovo.Repositories;
 
 namespace Groovo.Services;
 
@@ -15,22 +12,30 @@ public class AuthService : IAuthService
     private const int ACCESS_TOKEN_EXPIRY_MINUTES = 15;
     private const int REFRESH_TOKEN_EXPIRY_DAYS = 30;
 
-    private readonly ApplicationDbContext _context;
     private readonly IJwtService _jwtService;
     private readonly ILogger<AuthService> _logger;
     private readonly IPasswordHasher<User> _passwordHasher;
     private readonly IWebHostEnvironment _environment;
+    private readonly IUserRepository _userRepository;
+    private readonly IRefreshTokenRepository _refreshTokenRepository;
 
     private int _accessTokenExpiryMinutes = ACCESS_TOKEN_EXPIRY_MINUTES;
     private int _refreshTokenExpiryDays = REFRESH_TOKEN_EXPIRY_DAYS;
 
-    public AuthService(ApplicationDbContext context, IJwtService jwtService, ILogger<AuthService> logger, IPasswordHasher<User> passwordHasher, IWebHostEnvironment environment)
+    public AuthService(
+        IJwtService jwtService, 
+        ILogger<AuthService> logger, 
+        IPasswordHasher<User> passwordHasher, 
+        IWebHostEnvironment environment,
+        IUserRepository userRepository,
+        IRefreshTokenRepository refreshTokenRepository)
     {
-        _context = context;
         _jwtService = jwtService;
         _logger = logger;
         _passwordHasher = passwordHasher;
         _environment = environment;
+        _userRepository = userRepository;
+        _refreshTokenRepository = refreshTokenRepository;
     }
 
     public int AccessTokenExpiryMinutes {
@@ -47,7 +52,7 @@ public class AuthService : IAuthService
         try
         {
             // Check if user already exists
-            if (await _context.Users.AnyAsync(u => u.Email == request.Email))
+            if (await _userRepository.ExistsAsync(email: request.Email))
             {
                 throw new UserAlreadyExistsException(request.Email);
             }
@@ -63,8 +68,7 @@ public class AuthService : IAuthService
                 Role = request.Role
             };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            await _userRepository.CreateAsync(user);
 
             var accessToken = _jwtService.GenerateAccessToken(user);
             var refreshToken = _jwtService.GenerateRefreshToken();
@@ -79,8 +83,7 @@ public class AuthService : IAuthService
                 IsRevoked = false
             };
 
-            _context.RefreshTokens.Add(refreshTokenEntity);
-            await _context.SaveChangesAsync();
+            await _refreshTokenRepository.CreateAsync(refreshTokenEntity);
 
             return new InternalAuthResponse
             {
@@ -104,7 +107,7 @@ public class AuthService : IAuthService
     {
         try
         {
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+            var user = await _userRepository.GetByAsync(email: request.Email);
             if (user == null)
             {
                 throw new InvalidCredentialsException();
@@ -129,8 +132,7 @@ public class AuthService : IAuthService
                 IsRevoked = false
             };
 
-            _context.RefreshTokens.Add(refreshTokenEntity);
-            await _context.SaveChangesAsync();
+            await _refreshTokenRepository.CreateAsync(refreshTokenEntity);
 
             return new InternalAuthResponse
             {
@@ -154,51 +156,37 @@ public class AuthService : IAuthService
     {
         try
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            var storedToken = await _refreshTokenRepository.GetByTokenAsync(refreshToken, includeUser: true, validOnly: true);
+
+            if (storedToken == null)
+            {
+                throw new InvalidRefreshTokenException();
+            }
+
+            var accessToken = _jwtService.GenerateAccessToken(storedToken.User);
+            var newRefreshToken = _jwtService.GenerateRefreshToken();
+
+            storedToken.IsRevoked = true;
+            await _refreshTokenRepository.UpdateAsync(storedToken);
             
-            try
+            var newRefreshTokenEntity = new RefreshToken
             {
-                var storedToken = await _context.RefreshTokens
-                    .Include(rt => rt.User)
-                    .FirstOrDefaultAsync(rt => rt.Token == refreshToken && !rt.IsRevoked && rt.ExpiresAt > DateTime.UtcNow);
+                Id = Guid.NewGuid(),
+                Token = newRefreshToken,
+                UserId = storedToken.UserId,
+                ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenExpiryDays),
+                CreatedAt = DateTime.UtcNow,
+                IsRevoked = false
+            };
 
-                if (storedToken == null)
-                {
-                    throw new InvalidRefreshTokenException();
-                }
+            await _refreshTokenRepository.CreateAsync(newRefreshTokenEntity);
 
-                var accessToken = _jwtService.GenerateAccessToken(storedToken.User);
-                var newRefreshToken = _jwtService.GenerateRefreshToken();
-
-                storedToken.IsRevoked = true;
-                
-                var newRefreshTokenEntity = new RefreshToken
-                {
-                    Id = Guid.NewGuid(),
-                    Token = newRefreshToken,
-                    UserId = storedToken.UserId,
-                    ExpiresAt = DateTime.UtcNow.AddDays(RefreshTokenExpiryDays),
-                    CreatedAt = DateTime.UtcNow,
-                    IsRevoked = false
-                };
-
-                _context.RefreshTokens.Add(newRefreshTokenEntity);
-                
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                return new InternalAuthResponse
-                {
-                    AccessToken = accessToken,
-                    RefreshToken = newRefreshToken,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(AccessTokenExpiryMinutes)
-                };
-            }
-            catch
+            return new InternalAuthResponse
             {
-                await transaction.RollbackAsync();
-                throw;
-            }
+                AccessToken = accessToken,
+                RefreshToken = newRefreshToken,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(AccessTokenExpiryMinutes)
+            };
         }
         catch (InvalidRefreshTokenException)
         {
@@ -215,8 +203,7 @@ public class AuthService : IAuthService
     {
         try
         {
-            var storedToken = await _context.RefreshTokens
-                .FirstOrDefaultAsync(rt => rt.Token == refreshToken && !rt.IsRevoked);
+            var storedToken = await _refreshTokenRepository.GetByTokenAsync(refreshToken, validOnly: true);
 
             if (storedToken == null)
             {
@@ -224,7 +211,7 @@ public class AuthService : IAuthService
             }
 
             storedToken.IsRevoked = true;
-            await _context.SaveChangesAsync();
+            await _refreshTokenRepository.UpdateAsync(storedToken);
 
             return true;
         }

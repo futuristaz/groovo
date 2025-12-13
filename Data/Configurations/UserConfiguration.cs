@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Groovo.Models;
+using Groovo.DTOs;
 
 namespace Groovo.Data.Configurations;
 

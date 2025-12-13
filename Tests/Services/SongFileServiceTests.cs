@@ -1,25 +1,40 @@
-using Xunit;
 using Moq;
 using Microsoft.Extensions.Logging;
 using Groovo.Services;
 using Groovo.Services.Tus;
-using System.IO;
 using System.Text;
-using System.Threading.Tasks;
-using System;
 
 namespace Groovo.Tests.Services;
+
+public class TestTusStorageConfiguration : TusStorageConfiguration
+{
+    public TestTusStorageConfiguration(string tempPath, string finalPath)
+    {
+        typeof(TusStorageConfiguration).GetProperty("TempPath")!.SetValue(this, tempPath);
+        typeof(TusStorageConfiguration).GetProperty("FinalPath")!.SetValue(this, finalPath);
+    }
+}
 
 public class SongFileServiceTests : IDisposable
 {
     private readonly SongFileService _service;
     private readonly TusStorageConfiguration _config;
     private readonly Mock<ILogger<SongFileService>> _loggerMock;
+    private readonly string _testTempPath;
+    private readonly string _testFinalPath;
 
     public SongFileServiceTests()
     {
         _loggerMock = new Mock<ILogger<SongFileService>>();
-        _config = new TusStorageConfiguration(); // uses real hard-coded paths
+        
+        // Use isolated test directories with unique GUID to avoid conflicts and protect real data
+        var testId = Guid.NewGuid().ToString("N");
+        _testTempPath = Path.Combine(Path.GetTempPath(), "GroovoTests", testId, "temp");
+        _testFinalPath = Path.Combine(Path.GetTempPath(), "GroovoTests", testId, "final");
+        
+        // Use test-specific configuration
+        _config = new TestTusStorageConfiguration(_testTempPath, _testFinalPath);
+        
         _service = new SongFileService(_loggerMock.Object, _config);
 
         // Ensure clean test directories
@@ -31,11 +46,15 @@ public class SongFileServiceTests : IDisposable
     {
         try
         {
-            if (Directory.Exists(_config.TempPath))
-                Directory.Delete(_config.TempPath, true);
+            if (Directory.Exists(_testTempPath))
+                Directory.Delete(_testTempPath, true);
 
-            if (Directory.Exists(_config.FinalPath))
-                Directory.Delete(_config.FinalPath, true);
+            if (Directory.Exists(_testFinalPath))
+                Directory.Delete(_testFinalPath, true);
+                
+            var testParent = Path.Combine(Path.GetTempPath(), "GroovoTests");
+            if (Directory.Exists(testParent) && Directory.GetFileSystemEntries(testParent).Length == 0)
+                Directory.Delete(testParent, false);
         }
         catch { /* ignore */ }
     }

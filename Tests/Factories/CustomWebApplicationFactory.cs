@@ -1,25 +1,16 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
-using Xunit;
-using Groovo;
 using Groovo.Data.Contexts;
-using Groovo.DTOs;
-using Groovo.DTOs.Requests;
-using Groovo.DTOs.Responses;
 using Groovo.Models;
-using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Groovo.DTOs;
 
 namespace Groovo.Tests.Factories;
 

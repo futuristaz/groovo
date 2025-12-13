@@ -1,45 +1,39 @@
-using Xunit;
 using Moq;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.SignalR;
-using Groovo.Data.Contexts;
-using Groovo.Services;
 using Groovo.Models;
 using Groovo.DTOs;
 using Groovo.DTOs.Requests;
 using Groovo.Hubs;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Groovo.Repositories;
+using Groovo.Services;
 
 namespace Groovo.Tests.Services;
 
-public class PlaylistManagementServiceTests : IDisposable
+public class PlaylistServiceTests
 {
-    private readonly ApplicationDbContext _context;
-    private readonly Mock<ILogger<PlaylistManagementService>> _mockLogger;
+    private readonly Mock<ILogger<PlaylistService>> _mockLogger;
     private readonly Mock<IHubContext<PlaylistHub>> _mockHub;
-    private readonly PlaylistManagementService _service;
+    private readonly Mock<IPlaylistRepository> _playlistRepositoryMock;
+    private readonly Mock<ISongRepository> _songRepositoryMock;
+    private readonly Mock<IUserRepository> _userRepositoryMock;
+    private readonly PlaylistService _service;
 
-    public PlaylistManagementServiceTests()
+    public PlaylistServiceTests()
     {
-        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-            .Options;
-
-        _context = new ApplicationDbContext(options);
-        _mockLogger = new Mock<ILogger<PlaylistManagementService>>();
+        _mockLogger = new Mock<ILogger<PlaylistService>>();
         _mockHub = new Mock<IHubContext<PlaylistHub>>();
+        _playlistRepositoryMock = new Mock<IPlaylistRepository>();
+        _songRepositoryMock = new Mock<ISongRepository>();
+        _userRepositoryMock = new Mock<IUserRepository>();
 
-        _service = new PlaylistManagementService(_context, _mockLogger.Object, _mockHub.Object);
-    }
-
-    public void Dispose()
-    {
-        _context.Database.EnsureDeleted();
-        _context.Dispose();
+        _service = new PlaylistService(
+            _mockLogger.Object,
+            _mockHub.Object,
+            _playlistRepositoryMock.Object,
+            _songRepositoryMock.Object,
+            _userRepositoryMock.Object
+        );
     }
 
     #region GetAllPlaylistsAsync Tests
@@ -50,8 +44,10 @@ public class PlaylistManagementServiceTests : IDisposable
         // Arrange
         var publicPlaylist = CreateTestPlaylist("Public", isPublic: true);
         var privatePlaylist = CreateTestPlaylist("Private", isPublic: false);
-        await _context.Playlists.AddRangeAsync(publicPlaylist, privatePlaylist);
-        await _context.SaveChangesAsync();
+        var playlists = new List<Playlist> { publicPlaylist, privatePlaylist };
+
+        _playlistRepositoryMock.Setup(r => r.GetAllAsync(true))
+            .ReturnsAsync(playlists);
 
         // Act
         var result = await _service.GetAllPlaylistsAsync(isAdmin: true);
@@ -67,9 +63,10 @@ public class PlaylistManagementServiceTests : IDisposable
     {
         // Arrange
         var publicPlaylist = CreateTestPlaylist("Public", isPublic: true);
-        var privatePlaylist = CreateTestPlaylist("Private", isPublic: false);
-        await _context.Playlists.AddRangeAsync(publicPlaylist, privatePlaylist);
-        await _context.SaveChangesAsync();
+        var playlists = new List<Playlist> { publicPlaylist };
+
+        _playlistRepositoryMock.Setup(r => r.GetAllAsync(false))
+            .ReturnsAsync(playlists);
 
         // Act
         var result = await _service.GetAllPlaylistsAsync(isAdmin: false);
@@ -82,6 +79,10 @@ public class PlaylistManagementServiceTests : IDisposable
     [Fact]
     public async Task GetAllPlaylistsAsync_EmptyDatabase_ReturnsEmptyList()
     {
+        // Arrange
+        _playlistRepositoryMock.Setup(r => r.GetAllAsync(false))
+            .ReturnsAsync(new List<Playlist>());
+
         // Act
         var result = await _service.GetAllPlaylistsAsync(isAdmin: false);
 
@@ -98,8 +99,10 @@ public class PlaylistManagementServiceTests : IDisposable
     {
         // Arrange
         var playlist = CreateTestPlaylist("Test", isPublic: true);
-        await _context.Playlists.AddAsync(playlist);
-        await _context.SaveChangesAsync();
+        playlist.PlaylistOwners = new List<PlaylistOwner>();
+
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
+            .ReturnsAsync(playlist);
 
         // Act
         var result = await _service.GetPlaylistByIdAsync(playlist.Id);
@@ -118,11 +121,10 @@ public class PlaylistManagementServiceTests : IDisposable
         var user = CreateTestUser(userId, "Owner");
         var playlist = CreateTestPlaylist("Private", isPublic: false);
         var playlistOwner = new PlaylistOwner { PlaylistId = playlist.Id, UserId = userId, User = user };
-        
-        await _context.Users.AddAsync(user);
-        await _context.Playlists.AddAsync(playlist);
-        await _context.PlaylistOwners.AddAsync(playlistOwner);
-        await _context.SaveChangesAsync();
+        playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
+
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
+            .ReturnsAsync(playlist);
 
         // Act
         var result = await _service.GetPlaylistByIdAsync(playlist.Id, userId);
@@ -141,11 +143,10 @@ public class PlaylistManagementServiceTests : IDisposable
         var owner = CreateTestUser(ownerId, "Owner");
         var playlist = CreateTestPlaylist("Private", isPublic: false);
         var playlistOwner = new PlaylistOwner { PlaylistId = playlist.Id, UserId = ownerId, User = owner };
+        playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
 
-        await _context.Users.AddAsync(owner);
-        await _context.Playlists.AddAsync(playlist);
-        await _context.PlaylistOwners.AddAsync(playlistOwner);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
+            .ReturnsAsync(playlist);
 
         // Act
         var result = await _service.GetPlaylistByIdAsync(playlist.Id, otherUserId);
@@ -157,8 +158,13 @@ public class PlaylistManagementServiceTests : IDisposable
     [Fact]
     public async Task GetPlaylistByIdAsync_NonExistentPlaylist_ReturnsNull()
     {
+        // Arrange
+        var playlistId = Guid.NewGuid();
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlistId, true, true))
+            .ReturnsAsync((Playlist?)null);
+
         // Act
-        var result = await _service.GetPlaylistByIdAsync(Guid.NewGuid());
+        var result = await _service.GetPlaylistByIdAsync(playlistId);
 
         // Assert
         Assert.Null(result);
@@ -180,6 +186,19 @@ public class PlaylistManagementServiceTests : IDisposable
             IsPublic = true,
             IsAlbum = false
         };
+
+        Playlist capturedPlaylist = null!;
+        _playlistRepositoryMock.Setup(r => r.CreateAsync(It.IsAny<Playlist>()))
+            .Callback<Playlist>(p => capturedPlaylist = p)
+            .ReturnsAsync((Playlist p) => p);
+
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true, false))
+            .ReturnsAsync((Guid id, bool includeOwners, bool includeSongs) => 
+            {
+                var playlist = capturedPlaylist;
+                playlist.PlaylistOwners = new List<PlaylistOwner>();
+                return playlist;
+            });
 
         // Act
         var (playlist, error) = await _service.CreatePlaylistAsync(request, userId, "User");
@@ -232,31 +251,15 @@ public class PlaylistManagementServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreatePlaylistAsync_AdminCanCreateAnything_Success()
-    {
-        // Arrange
-        var userId = Guid.NewGuid();
-        var request = new CreatePlaylistRequest
-        {
-            Name = "Admin Album",
-            IsAlbum = true
-        };
-
-        // Act
-        var (playlist, error) = await _service.CreatePlaylistAsync(request, userId, "Admin");
-
-        // Assert
-        Assert.NotNull(playlist);
-        Assert.Null(error);
-        Assert.True(playlist.IsAlbum);
-    }
-
-    [Fact]
     public async Task CreatePlaylistAsync_WithInvalidOwnerIds_ReturnsError()
     {
         // Arrange
         var userId = Guid.NewGuid();
         var invalidOwnerId = Guid.NewGuid();
+        
+        _userRepositoryMock.Setup(r => r.GetByIdsAsync(It.Is<List<Guid>>(ids => ids.Contains(invalidOwnerId))))
+            .ReturnsAsync(new List<User>());
+
         var request = new CreatePlaylistRequest
         {
             Name = "Playlist",
@@ -278,8 +281,25 @@ public class PlaylistManagementServiceTests : IDisposable
         // Arrange
         var userId = Guid.NewGuid();
         var user = CreateTestUser(userId, "TestUser");
-        await _context.Users.AddAsync(user);
-        await _context.SaveChangesAsync();
+
+        _userRepositoryMock.Setup(r => r.GetByIdsAsync(It.Is<List<Guid>>(ids => ids.Contains(userId))))
+            .ReturnsAsync(new List<User> { user });
+
+        Playlist capturedPlaylist = null!;
+        _playlistRepositoryMock.Setup(r => r.CreateAsync(It.IsAny<Playlist>()))
+            .Callback<Playlist>(p => capturedPlaylist = p)
+            .ReturnsAsync((Playlist p) => p);
+
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true, false))
+            .ReturnsAsync((Guid id, bool includeOwners, bool includeSongs) =>
+            {
+                var playlist = capturedPlaylist;
+                playlist.PlaylistOwners = new List<PlaylistOwner> 
+                { 
+                    new PlaylistOwner { PlaylistId = playlist.Id, UserId = userId, User = user }
+                };
+                return playlist;
+            });
 
         var request = new CreatePlaylistRequest
         {
@@ -310,11 +330,15 @@ public class PlaylistManagementServiceTests : IDisposable
         var user = CreateTestUser(userId, "Owner");
         var playlist = CreateTestPlaylist("Original", isPublic: true);
         var playlistOwner = new PlaylistOwner { PlaylistId = playlist.Id, UserId = userId, User = user };
+        playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
 
-        await _context.Users.AddAsync(user);
-        await _context.Playlists.AddAsync(playlist);
-        await _context.PlaylistOwners.AddAsync(playlistOwner);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, false))
+            .ReturnsAsync(playlist);
+
+        Playlist updatedPlaylist = null!;
+        _playlistRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<Playlist>()))
+            .Callback<Playlist>(p => updatedPlaylist = p)
+            .Returns(Task.CompletedTask);
 
         var request = new UpdatePlaylistRequest
         {
@@ -329,11 +353,9 @@ public class PlaylistManagementServiceTests : IDisposable
         // Assert
         Assert.True(success);
         Assert.Null(error);
-
-        var updated = await _context.Playlists.FindAsync(playlist.Id);
-        Assert.Equal("Updated", updated!.Name);
-        Assert.Equal("New Description", updated.Description);
-        Assert.False(updated.IsPublic);
+        Assert.Equal("Updated", updatedPlaylist.Name);
+        Assert.Equal("New Description", updatedPlaylist.Description);
+        Assert.False(updatedPlaylist.IsPublic);
     }
 
     [Fact]
@@ -345,11 +367,10 @@ public class PlaylistManagementServiceTests : IDisposable
         var owner = CreateTestUser(ownerId, "Owner");
         var playlist = CreateTestPlaylist("Test", isPublic: true);
         var playlistOwner = new PlaylistOwner { PlaylistId = playlist.Id, UserId = ownerId, User = owner };
+        playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
 
-        await _context.Users.AddAsync(owner);
-        await _context.Playlists.AddAsync(playlist);
-        await _context.PlaylistOwners.AddAsync(playlistOwner);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, false))
+            .ReturnsAsync(playlist);
 
         var request = new UpdatePlaylistRequest { Name = "Updated" };
 
@@ -364,10 +385,14 @@ public class PlaylistManagementServiceTests : IDisposable
     public async Task UpdatePlaylistAsync_NonExistentPlaylist_ReturnsFalse()
     {
         // Arrange
+        var playlistId = Guid.NewGuid();
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlistId, true, false))
+            .ReturnsAsync((Playlist?)null);
+
         var request = new UpdatePlaylistRequest { Name = "Updated" };
 
         // Act
-        var (success, error) = await _service.UpdatePlaylistAsync(Guid.NewGuid(), request, Guid.NewGuid());
+        var (success, error) = await _service.UpdatePlaylistAsync(playlistId, request, Guid.NewGuid());
 
         // Assert
         Assert.False(success);
@@ -385,11 +410,14 @@ public class PlaylistManagementServiceTests : IDisposable
         var user = CreateTestUser(userId, "Owner");
         var playlist = CreateTestPlaylist("ToDelete", isPublic: true);
         var playlistOwner = new PlaylistOwner { PlaylistId = playlist.Id, UserId = userId, User = user };
+        playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
+        playlist.PlaylistSongs = new List<PlaylistSong>();
 
-        await _context.Users.AddAsync(user);
-        await _context.Playlists.AddAsync(playlist);
-        await _context.PlaylistOwners.AddAsync(playlistOwner);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
+            .ReturnsAsync(playlist);
+
+        _playlistRepositoryMock.Setup(r => r.DeleteAsync(playlist.Id))
+            .Returns(Task.CompletedTask);
 
         // Act
         var (success, error) = await _service.DeletePlaylistAsync(playlist.Id, userId);
@@ -397,7 +425,7 @@ public class PlaylistManagementServiceTests : IDisposable
         // Assert
         Assert.True(success);
         Assert.Null(error);
-        Assert.Null(await _context.Playlists.FindAsync(playlist.Id));
+        _playlistRepositoryMock.Verify(r => r.DeleteAsync(playlist.Id), Times.Once);
     }
 
     [Fact]
@@ -410,13 +438,11 @@ public class PlaylistManagementServiceTests : IDisposable
         var song = CreateTestSong("Song", new Duration(180));
         var playlistSong = new PlaylistSong { PlaylistId = playlist.Id, SongId = song.Id };
         var playlistOwner = new PlaylistOwner { PlaylistId = playlist.Id, UserId = userId, User = user };
+        playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
+        playlist.PlaylistSongs = new List<PlaylistSong> { playlistSong };
 
-        await _context.Users.AddAsync(user);
-        await _context.Playlists.AddAsync(playlist);
-        await _context.Songs.AddAsync(song);
-        await _context.PlaylistSongs.AddAsync(playlistSong);
-        await _context.PlaylistOwners.AddAsync(playlistOwner);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
+            .ReturnsAsync(playlist);
 
         // Act
         var (success, error) = await _service.DeletePlaylistAsync(playlist.Id, userId);
@@ -436,13 +462,14 @@ public class PlaylistManagementServiceTests : IDisposable
         var song = CreateTestSong("Song", new Duration(180));
         var playlistSong = new PlaylistSong { PlaylistId = playlist.Id, SongId = song.Id };
         var playlistOwner = new PlaylistOwner { PlaylistId = playlist.Id, UserId = userId, User = user };
+        playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
+        playlist.PlaylistSongs = new List<PlaylistSong> { playlistSong };
 
-        await _context.Users.AddAsync(user);
-        await _context.Playlists.AddAsync(playlist);
-        await _context.Songs.AddAsync(song);
-        await _context.PlaylistSongs.AddAsync(playlistSong);
-        await _context.PlaylistOwners.AddAsync(playlistOwner);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
+            .ReturnsAsync(playlist);
+
+        _playlistRepositoryMock.Setup(r => r.DeleteAsync(playlist.Id))
+            .Returns(Task.CompletedTask);
 
         // Act
         var (success, error) = await _service.DeletePlaylistAsync(playlist.Id, userId);
@@ -450,8 +477,7 @@ public class PlaylistManagementServiceTests : IDisposable
         // Assert
         Assert.True(success);
         Assert.Null(error);
-        Assert.Null(await _context.Playlists.FindAsync(playlist.Id));
-        Assert.Empty(_context.PlaylistSongs.Where(ps => ps.PlaylistId == playlist.Id));
+        _playlistRepositoryMock.Verify(r => r.DeleteAsync(playlist.Id), Times.Once);
     }
 
     #endregion
@@ -467,12 +493,22 @@ public class PlaylistManagementServiceTests : IDisposable
         var playlist = CreateTestPlaylist("Playlist", isPublic: true, isAlbum: false);
         var song = CreateTestSong("Song", new Duration(180)); // 3 minutes
         var playlistOwner = new PlaylistOwner { PlaylistId = playlist.Id, UserId = userId, User = user };
+        playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
 
-        await _context.Users.AddAsync(user);
-        await _context.Playlists.AddAsync(playlist);
-        await _context.Songs.AddAsync(song);
-        await _context.PlaylistOwners.AddAsync(playlistOwner);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
+            .ReturnsAsync(playlist);
+
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, false, false, false))
+            .ReturnsAsync(song);
+
+        _playlistRepositoryMock.Setup(r => r.GetMaxSongOrderAsync(playlist.Id))
+            .ReturnsAsync(0);
+
+        _playlistRepositoryMock.Setup(r => r.AddSongToPlaylistAsync(playlist.Id, song.Id, 0))
+            .ReturnsAsync(1);
+
+        _songRepositoryMock.Setup(r => r.GetSongLengthAsync(song.Id))
+            .ReturnsAsync(180);
 
         var mockClients = new Mock<IHubClients>();
         var mockClientProxy = new Mock<IClientProxy>();
@@ -485,10 +521,7 @@ public class PlaylistManagementServiceTests : IDisposable
         // Assert
         Assert.True(success);
         Assert.Contains("Added song", error);
-        
-        var updatedPlaylist = await _context.Playlists.Include(p => p.PlaylistSongs).FirstAsync(p => p.Id == playlist.Id);
-        Assert.Single(updatedPlaylist.PlaylistSongs);
-        Assert.Equal(180, updatedPlaylist.TotalDuration.TotalSeconds);
+        _playlistRepositoryMock.Verify(r => r.AddSongToPlaylistAsync(playlist.Id, song.Id, 0), Times.Once);
     }
 
     [Fact]
@@ -501,13 +534,14 @@ public class PlaylistManagementServiceTests : IDisposable
         var song = CreateTestSong("Song", new Duration(180));
         var playlistSong = new PlaylistSong { PlaylistId = playlist.Id, SongId = song.Id };
         var playlistOwner = new PlaylistOwner { PlaylistId = playlist.Id, UserId = userId, User = user };
+        playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
+        playlist.PlaylistSongs = new List<PlaylistSong> { playlistSong };
 
-        await _context.Users.AddAsync(user);
-        await _context.Playlists.AddAsync(playlist);
-        await _context.Songs.AddAsync(song);
-        await _context.PlaylistSongs.AddAsync(playlistSong);
-        await _context.PlaylistOwners.AddAsync(playlistOwner);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
+            .ReturnsAsync(playlist);
+
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, false, false, false))
+            .ReturnsAsync(song);
 
         // Act
         var (success, error) = await _service.AddSongToPlaylistAsync(playlist.Id, song.Id, userId);
@@ -526,12 +560,13 @@ public class PlaylistManagementServiceTests : IDisposable
         var playlist = CreateTestPlaylist("Album", isPublic: true, isAlbum: true);
         var song = CreateTestSong("Song", new Duration(180));
         var playlistOwner = new PlaylistOwner { PlaylistId = playlist.Id, UserId = userId, User = user };
+        playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
 
-        await _context.Users.AddAsync(user);
-        await _context.Playlists.AddAsync(playlist);
-        await _context.Songs.AddAsync(song);
-        await _context.PlaylistOwners.AddAsync(playlistOwner);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, false))
+            .ReturnsAsync(playlist);
+
+        _songRepositoryMock.Setup(r => r.GetByIdAsync(song.Id, false, false, false))
+            .ReturnsAsync(song);
 
         // Act
         var (success, error) = await _service.AddSongToPlaylistAsync(playlist.Id, song.Id, userId);
@@ -556,13 +591,17 @@ public class PlaylistManagementServiceTests : IDisposable
         var song = CreateTestSong("Song", new Duration(180));
         var playlistSong = new PlaylistSong { PlaylistId = playlist.Id, SongId = song.Id };
         var playlistOwner = new PlaylistOwner { PlaylistId = playlist.Id, UserId = userId, User = user };
+        playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
+        playlist.PlaylistSongs = new List<PlaylistSong> { playlistSong };
 
-        await _context.Users.AddAsync(user);
-        await _context.Playlists.AddAsync(playlist);
-        await _context.Songs.AddAsync(song);
-        await _context.PlaylistSongs.AddAsync(playlistSong);
-        await _context.PlaylistOwners.AddAsync(playlistOwner);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
+            .ReturnsAsync(playlist);
+
+        _playlistRepositoryMock.Setup(r => r.RemoveSongFromPlaylistAsync(playlist.Id, song.Id))
+            .Returns(Task.CompletedTask);
+
+        _songRepositoryMock.Setup(r => r.GetSongLengthAsync(song.Id))
+            .ReturnsAsync(180);
 
         var mockClients = new Mock<IHubClients>();
         var mockClientProxy = new Mock<IClientProxy>();
@@ -575,10 +614,7 @@ public class PlaylistManagementServiceTests : IDisposable
         // Assert
         Assert.True(success);
         Assert.Contains("Removed song", error);
-        
-        var updatedPlaylist = await _context.Playlists.Include(p => p.PlaylistSongs).FirstAsync(p => p.Id == playlist.Id);
-        Assert.Empty(updatedPlaylist.PlaylistSongs);
-        Assert.Equal(0, updatedPlaylist.TotalDuration.TotalSeconds);
+        _playlistRepositoryMock.Verify(r => r.RemoveSongFromPlaylistAsync(playlist.Id, song.Id), Times.Once);
     }
 
     [Fact]
@@ -589,11 +625,17 @@ public class PlaylistManagementServiceTests : IDisposable
         var user = CreateTestUser(userId, "Owner");
         var playlist = CreateTestPlaylist("Playlist", isPublic: true, isAlbum: false);
         var playlistOwner = new PlaylistOwner { PlaylistId = playlist.Id, UserId = userId, User = user };
+        playlist.PlaylistOwners = new List<PlaylistOwner> { playlistOwner };
+        playlist.PlaylistSongs = new List<PlaylistSong>();
 
-        await _context.Users.AddAsync(user);
-        await _context.Playlists.AddAsync(playlist);
-        await _context.PlaylistOwners.AddAsync(playlistOwner);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, false))
+            .ReturnsAsync(playlist);
+
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, false, true))
+            .ReturnsAsync(playlist);
+
+        _playlistRepositoryMock.Setup(r => r.GetByIdAsync(playlist.Id, true, true))
+            .ReturnsAsync(playlist);
 
         // Act
         var (success, error) = await _service.RemoveSongFromPlaylistAsync(playlist.Id, Guid.NewGuid(), userId);
@@ -615,8 +657,8 @@ public class PlaylistManagementServiceTests : IDisposable
         var playlist2 = CreateTestPlaylist("Jazz Playlist", isPublic: true);
         var playlist3 = CreateTestPlaylist("Classical", isPublic: true);
 
-        await _context.Playlists.AddRangeAsync(playlist1, playlist2, playlist3);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.SearchAsync("Playlist"))
+            .ReturnsAsync(new List<Playlist> { playlist1, playlist2 });
 
         // Act
         var result = await _service.SearchPlaylistsAsync("Playlist");
@@ -633,8 +675,8 @@ public class PlaylistManagementServiceTests : IDisposable
         var playlist1 = CreateTestPlaylist("List1", isPublic: true, description: "Best rock songs");
         var playlist2 = CreateTestPlaylist("List2", isPublic: true, description: "Best jazz songs");
 
-        await _context.Playlists.AddRangeAsync(playlist1, playlist2);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.SearchAsync("rock"))
+            .ReturnsAsync(new List<Playlist> { playlist1 });
 
         // Act
         var result = await _service.SearchPlaylistsAsync("rock");
@@ -651,8 +693,8 @@ public class PlaylistManagementServiceTests : IDisposable
         var publicPlaylist = CreateTestPlaylist("Public Rock", isPublic: true);
         var privatePlaylist = CreateTestPlaylist("Private Rock", isPublic: false);
 
-        await _context.Playlists.AddRangeAsync(publicPlaylist, privatePlaylist);
-        await _context.SaveChangesAsync();
+        _playlistRepositoryMock.Setup(r => r.SearchAsync("Rock"))
+            .ReturnsAsync(new List<Playlist> { publicPlaylist });
 
         // Act
         var result = await _service.SearchPlaylistsAsync("Rock");

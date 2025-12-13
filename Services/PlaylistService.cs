@@ -1,35 +1,40 @@
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
-using Groovo.Data.Contexts;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
 using Groovo.Hubs;
 using Groovo.Models;
+using Groovo.Repositories;
+using Groovo.DTOs;
 
 namespace Groovo.Services
 {
-    public class PlaylistManagementService : IPlaylistManagementService
+    public class PlaylistService : IPlaylistService
     {
-        private readonly ApplicationDbContext _context;
-        private readonly ILogger<PlaylistManagementService> _logger;
+        private readonly ILogger<PlaylistService> _logger;
         private readonly IHubContext<PlaylistHub> _hub;
+        private readonly IPlaylistRepository _playlistRepository;
+        private readonly ISongRepository _songRepository;
+        private readonly IUserRepository _userRepository;
 
-        public PlaylistManagementService(ApplicationDbContext context, ILogger<PlaylistManagementService> logger, IHubContext<PlaylistHub> hub)
+        public PlaylistService(
+            ILogger<PlaylistService> logger, 
+            IHubContext<PlaylistHub> hub,
+            IPlaylistRepository playlistRepository,
+            ISongRepository songRepository,
+            IUserRepository userRepository)
         {
-            _context = context;
             _logger = logger;
             _hub = hub;
+            _playlistRepository = playlistRepository;
+            _songRepository = songRepository;
+            _userRepository = userRepository;
         }
 
         public async Task<List<PlaylistSummaryResponse>> GetAllPlaylistsAsync(bool isAdmin)
         {
             try
             {
-                var playlists = await _context.Playlists
-                    .Include(p => p.PlaylistSongs)
-                    .Where(p => p.IsPublic || isAdmin)
-                    .OrderBy(p => p.CreatedAt)
-                    .ToListAsync();
+                var playlists = await _playlistRepository.GetAllAsync(includePrivate: isAdmin);
 
                 return playlists.Select(p => new PlaylistSummaryResponse(
                     p.Id,
@@ -53,25 +58,23 @@ namespace Groovo.Services
         {
             try
             {
-                var query = _context.Playlists
-                    .Include(p => p.PlaylistSongs)
-                    .Include(p => p.PlaylistOwners)
-                    .ThenInclude(po => po.User)
-                    .Where(p => p.Id == id);
-
-                if (!isAdmin && userId.HasValue)
-                {
-                    query = query.Where(p => p.IsPublic || p.PlaylistOwners.Any(po => po.UserId == userId));
-                }
-                else if (!isAdmin)
-                {
-                    query = query.Where(p => p.IsPublic);
-                }
-
-                var playlist = await query.FirstOrDefaultAsync();
+                var playlist = await _playlistRepository.GetByIdAsync(id, includeOwners: true, includeSongs: true);
 
                 if (playlist == null)
                     return null;
+
+                // Check permissions
+                if (!isAdmin)
+                {
+                    bool hasAccess = playlist.IsPublic;
+                    if (!hasAccess && userId.HasValue)
+                    {
+                        hasAccess = playlist.PlaylistOwners.Any(po => po.UserId == userId);
+                    }
+                    
+                    if (!hasAccess)
+                        return null;
+                }
 
                 return new PlaylistResponse(
                     playlist.Id,
@@ -119,10 +122,8 @@ namespace Groovo.Services
                 List<Guid> validatedOwnerIds = new List<Guid>();
                 if (request.OwnerIds != null && request.OwnerIds.Any())
                 {
-                    var existingUserIds = await _context.Users
-                        .Where(u => request.OwnerIds.Contains(u.Id))
-                        .Select(u => u.Id)
-                        .ToListAsync();
+                    var existingUsers = await _userRepository.GetByIdsAsync(request.OwnerIds);
+                    var existingUserIds = existingUsers.Select(u => u.Id).ToList();
 
                     var invalidUserIds = request.OwnerIds.Except(existingUserIds).ToList();
                     if (invalidUserIds.Any())
@@ -145,8 +146,6 @@ namespace Groovo.Services
                     TotalDuration = 0
                 };
 
-                _context.Playlists.Add(newPlaylist);
-
                 if (validatedOwnerIds.Any())
                 {
                     var playlistOwners = validatedOwnerIds.Select(ownerId => new PlaylistOwner
@@ -155,15 +154,12 @@ namespace Groovo.Services
                         UserId = ownerId
                     }).ToList();
 
-                    _context.PlaylistOwners.AddRange(playlistOwners);
+                    newPlaylist.PlaylistOwners = playlistOwners;
                 }
 
-                await _context.SaveChangesAsync();
+                await _playlistRepository.CreateAsync(newPlaylist);
 
-                var createdPlaylist = await _context.Playlists
-                    .Include(p => p.PlaylistOwners)
-                    .ThenInclude(po => po.User)
-                    .FirstOrDefaultAsync(p => p.Id == newPlaylist.Id);
+                var createdPlaylist = await _playlistRepository.GetByIdAsync(newPlaylist.Id, includeOwners: true);
 
                 if (createdPlaylist == null)
                 {
@@ -206,12 +202,13 @@ namespace Groovo.Services
         {
             try
             {
-                var existing = await _context.Playlists
-                    .Include(p => p.PlaylistOwners)
-                    .FirstOrDefaultAsync(p => p.Id == id && (isAdmin ||
-                        p.PlaylistOwners.Any(po => po.UserId == userId)));
+                var existing = await _playlistRepository.GetByIdAsync(id, includeOwners: true);
 
                 if (existing == null)
+                    return (false, null);
+
+                // Check permissions
+                if (!isAdmin && !existing.PlaylistOwners.Any(po => po.UserId == userId))
                     return (false, null);
 
                 if (request.Name != null)
@@ -223,7 +220,7 @@ namespace Groovo.Services
                 if (request.IsPublic.HasValue)
                     existing.IsPublic = request.IsPublic.Value;
 
-                await _context.SaveChangesAsync();
+                await _playlistRepository.UpdateAsync(existing);
 
                 _logger.LogInformation("Updated playlist {PlaylistId}: {PlaylistName}", id, existing.Name);
 
@@ -240,13 +237,13 @@ namespace Groovo.Services
         {
             try
             {
-                var playlist = await _context.Playlists
-                    .Include(p => p.PlaylistSongs)
-                    .Include(p => p.PlaylistOwners)
-                    .FirstOrDefaultAsync(p => p.Id == id && (isAdmin ||
-                        p.PlaylistOwners.Any(po => po.UserId == userId)));
+                var playlist = await _playlistRepository.GetByIdAsync(id, includeOwners: true, includeSongs: true);
 
                 if (playlist == null)
+                    return (false, null);
+
+                // Check permissions
+                if (!isAdmin && !playlist.PlaylistOwners.Any(po => po.UserId == userId))
                     return (false, null);
 
                 // If it is album and has songs, prevent deletion
@@ -255,19 +252,8 @@ namespace Groovo.Services
                     return (false, "Cannot delete an album that contains songs.");
                 }
 
-                if (playlist.PlaylistSongs.Any())
-                {
-                    _context.PlaylistSongs.RemoveRange(playlist.PlaylistSongs);
-                }
-
-                if (playlist.PlaylistOwners.Any())
-                {
-                    _context.PlaylistOwners.RemoveRange(playlist.PlaylistOwners);
-                }
-
-                _context.Playlists.Remove(playlist);
-
-                await _context.SaveChangesAsync();
+                // Delete playlist - related entities (PlaylistOwners, PlaylistSongs) will be cascade deleted
+                await _playlistRepository.DeleteAsync(id);
 
                 _logger.LogInformation("Deleted playlist {PlaylistId}: {PlaylistName} and all related entries", id, playlist.Name);
 
@@ -284,27 +270,23 @@ namespace Groovo.Services
         {
             try
             {
-                var query = _context.Playlists
-                    .Include(p => p.PlaylistSongs)
-                    .ThenInclude(ps => ps.Song)
-                    .ThenInclude(s => s.SongAuthors)
-                    .ThenInclude(sa => sa.User)
-                    .Include(p => p.PlaylistOwners)
-                    .Where(p => p.Id == id);
-
-                if (!isAdmin && userId.HasValue)
-                {
-                    query = query.Where(p => p.IsPublic || p.PlaylistOwners.Any(po => po.UserId == userId));
-                }
-                else if (!isAdmin)
-                {
-                    query = query.Where(p => p.IsPublic);
-                }
-
-                var playlist = await query.FirstOrDefaultAsync();
+                var playlist = await _playlistRepository.GetByIdWithSongDetailsAsync(id);
 
                 if (playlist == null)
                     return null;
+
+                // Check permissions
+                if (!isAdmin)
+                {
+                    bool hasAccess = playlist.IsPublic;
+                    if (!hasAccess && userId.HasValue)
+                    {
+                        hasAccess = playlist.PlaylistOwners.Any(po => po.UserId == userId);
+                    }
+                    
+                    if (!hasAccess)
+                        return null;
+                }
 
                 return playlist.PlaylistSongs
                     .Where(ps => ps.Song.IsActive)
@@ -326,18 +308,16 @@ namespace Groovo.Services
         {
             try
             {
-                var playlist = await _context.Playlists
-                    .Where(p => p.Id == playlistId && !p.IsAlbum)
-                    .Include(p => p.PlaylistSongs)
-                    .Include(p => p.PlaylistOwners)
-                    .FirstOrDefaultAsync(p => isAdmin ||
-                        p.PlaylistOwners.Any(po => po.UserId == userId));
+                var playlist = await _playlistRepository.GetByIdAsync(playlistId, includeOwners: true, includeSongs: true);
 
-                if (playlist == null)
+                if (playlist == null || playlist.IsAlbum)
                     return (false, $"Playlist with ID {playlistId} not found.");
 
-                var song = await _context.Songs
-                    .FirstOrDefaultAsync(s => s.Id == songId && s.IsActive);
+                // Check permissions
+                if (!isAdmin && !playlist.PlaylistOwners.Any(po => po.UserId == userId))
+                    return (false, $"Playlist with ID {playlistId} not found.");
+
+                var song = await _songRepository.GetByIdAsync(songId);
 
                 if (song == null)
                     return (false, $"Song with ID {songId} not found.");
@@ -350,27 +330,14 @@ namespace Groovo.Services
                     ? playlist.PlaylistSongs.Max(ps => ps.Order) + 1
                     : 0;
 
-                var playlistSong = new PlaylistSong
-                {
-                    PlaylistId = playlistId,
-                    SongId = songId,
-                    Order = nextOrder
-                };
-
-                _context.PlaylistSongs.Add(playlistSong);
+                await _playlistRepository.AddSongToPlaylistAsync(playlistId, songId, nextOrder);
 
                 playlist.TotalDuration += song.Duration;
-
-                await _context.SaveChangesAsync();
+                await _playlistRepository.UpdateAsync(playlist);
 
                 var songResponse = new SongSummaryResponse(
                     song,
-                    await _context.SongAuthors
-                        .Where(sa => sa.SongId == songId)
-                        .Include(sa => sa.User)
-                        .Where(sa => sa.User.Role == UserRole.Author)
-                        .Select(sa => sa.User.Name)
-                        .ToListAsync()
+                    await _songRepository.GetSongAuthorNamesAsync(songId)
                 );
 
                 await _hub.Clients.Group($"playlist_{playlistId}")
@@ -395,30 +362,28 @@ namespace Groovo.Services
         {
             try
             {
-                var playlist = await _context.Playlists
-                    .Where(p => p.Id == playlistId && !p.IsAlbum)
-                    .Include(p => p.PlaylistSongs)
-                    .Include(p => p.PlaylistOwners)
-                    .FirstOrDefaultAsync(p => isAdmin ||
-                        p.PlaylistOwners.Any(po => po.UserId == userId));
+                var playlist = await _playlistRepository.GetByIdAsync(playlistId, includeOwners: true, includeSongs: true);
 
-                if (playlist == null)
+                if (playlist == null || playlist.IsAlbum)
+                    return (false, $"Playlist with ID {playlistId} not found.");
+
+                // Check permissions
+                if (!isAdmin && !playlist.PlaylistOwners.Any(po => po.UserId == userId))
                     return (false, $"Playlist with ID {playlistId} not found.");
 
                 var playlistSong = playlist.PlaylistSongs.FirstOrDefault(ps => ps.SongId == songId);
                 if (playlistSong == null)
                     return (false, $"Song with ID {songId} not found in this playlist.");
 
-                var song = await _context.Songs.FirstOrDefaultAsync(s => s.Id == songId);
+                var song = await _songRepository.GetByIdAsync(songId);
 
-                _context.PlaylistSongs.Remove(playlistSong);
+                await _playlistRepository.RemoveSongFromPlaylistAsync(playlistId, songId);
 
                 if (song != null)
                 {
                     playlist.TotalDuration -= song.Duration;
+                    await _playlistRepository.UpdateAsync(playlist);
                 }
-
-                await _context.SaveChangesAsync();
 
                 await _hub.Clients.Group($"playlist_{playlistId}").SendAsync("SongRemoved", songId);
 
@@ -437,14 +402,7 @@ namespace Groovo.Services
         {
             try
             {
-                var playlists = await _context.Playlists
-                    .Include(p => p.PlaylistSongs)
-                    .Where(p => p.IsPublic && (
-                        p.Name.Contains(query) ||
-                        (p.Description != null && p.Description.Contains(query))
-                    ))
-                    .OrderBy(p => p.Name)
-                    .ToListAsync();
+                var playlists = await _playlistRepository.SearchAsync(query);
 
                 return playlists.Select(p => new PlaylistSummaryResponse(
                     p.Id,

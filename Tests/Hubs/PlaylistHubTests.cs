@@ -1,12 +1,9 @@
-using Xunit;
 using Moq;
 using Microsoft.AspNetCore.SignalR;
-using System;
 using System.Security.Claims;
-using System.Threading;
-using System.Threading.Tasks;
 using Groovo.Hubs;
 using Groovo.Services.Hub;
+using Groovo.Repositories;
 using Microsoft.Extensions.Logging;
 using Groovo.DTOs;
 
@@ -16,8 +13,9 @@ public class PlaylistHubTests
 {
     private readonly Mock<IUserPlaylistTracker<string, string>> _trackerMock;
     private readonly Mock<IPlaybackStateStore<string, PlaybackState>> _playbackMock;
-    private readonly Mock<IPlaylistService> _playlistServiceMock;
     private readonly Mock<ILogger<PlaylistHub>> _loggerMock;
+    private readonly Mock<IPlaylistRepository> _playlistRepositoryMock;
+    private readonly Mock<ISongRepository> _songRepositoryMock;
     private readonly PlaylistHub _hub;
     private readonly Mock<HubCallerContext> _contextMock;
     private readonly Mock<IHubCallerClients> _clientsMock;
@@ -30,8 +28,9 @@ public class PlaylistHubTests
     {
         _trackerMock = new Mock<IUserPlaylistTracker<string, string>>();
         _playbackMock = new Mock<IPlaybackStateStore<string, PlaybackState>>();
-        _playlistServiceMock = new Mock<IPlaylistService>();
         _loggerMock = new Mock<ILogger<PlaylistHub>>();
+        _playlistRepositoryMock = new Mock<IPlaylistRepository>();
+        _songRepositoryMock = new Mock<ISongRepository>();
         _contextMock = new Mock<HubCallerContext>();
         _clientsMock = new Mock<IHubCallerClients>();
         _groupProxyMock = new Mock<IClientProxy>();
@@ -39,11 +38,11 @@ public class PlaylistHubTests
         _groupsMock = new Mock<IGroupManager>();
 
         _hub = new PlaylistHub(
-            null!, // DbContext not used in unit tests
             _loggerMock.Object,
             _trackerMock.Object,
             _playbackMock.Object,
-            _playlistServiceMock.Object
+            _playlistRepositoryMock.Object,
+            _songRepositoryMock.Object
         );
 
         _hub.Context = _contextMock.Object;
@@ -81,7 +80,7 @@ public class PlaylistHubTests
         var playlistId = Guid.NewGuid();
 
         _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns((string?)null);
-        _playlistServiceMock.Setup(p => p.CanAccessPlaylist(playlistId, _userId)).ReturnsAsync(true);
+        _playlistRepositoryMock.Setup(p => p.CanUserAccessPlaylistAsync(playlistId, _userId)).ReturnsAsync(true);
         _groupsMock.Setup(g => g.AddToGroupAsync("conn1", It.IsAny<string>(), default)).Returns(Task.CompletedTask);
 
         await _hub.JoinPlaylist(playlistId);
@@ -96,7 +95,7 @@ public class PlaylistHubTests
     {
         var playlistId = Guid.NewGuid();
 
-        _playlistServiceMock.Setup(p => p.CanAccessPlaylist(playlistId, _userId)).ReturnsAsync(false);
+        _playlistRepositoryMock.Setup(p => p.CanUserAccessPlaylistAsync(playlistId, _userId)).ReturnsAsync(false);
 
         var exception = await Assert.ThrowsAsync<HubException>(() => _hub.JoinPlaylist(playlistId));
         Assert.Contains("Unauthorized", exception.Message);
@@ -109,7 +108,7 @@ public class PlaylistHubTests
         var newPlaylistId = Guid.NewGuid();
 
         _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns(oldPlaylistId.ToString());
-        _playlistServiceMock.Setup(p => p.CanAccessPlaylist(newPlaylistId, _userId)).ReturnsAsync(true);
+        _playlistRepositoryMock.Setup(p => p.CanUserAccessPlaylistAsync(newPlaylistId, _userId)).ReturnsAsync(true);
         _groupsMock.Setup(g => g.RemoveFromGroupAsync("conn1", It.IsAny<string>(), default)).Returns(Task.CompletedTask);
         _groupsMock.Setup(g => g.AddToGroupAsync("conn1", It.IsAny<string>(), default)).Returns(Task.CompletedTask);
 
@@ -180,8 +179,8 @@ public class PlaylistHubTests
         _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns(playlistId);
         var state = new PlaybackState { CurrentSongId = songId, NextSongId = nextSongId };
         _playbackMock.Setup(p => p.GetOrCreate(playlistId)).Returns(state);
-        _playlistServiceMock.Setup(p => p.GetSongLength(songId)).ReturnsAsync(300);
-        _playlistServiceMock.Setup(p => p.GetNextSongId(Guid.Parse(playlistId), songId)).ReturnsAsync(nextSongId);
+        _songRepositoryMock.Setup(p => p.GetSongLengthAsync(songId)).ReturnsAsync(300);
+        _playlistRepositoryMock.Setup(p => p.GetNextSongIdAsync(Guid.Parse(playlistId), songId)).ReturnsAsync(nextSongId);
         _playbackMock.Setup(p => p.TryUpdate(playlistId, It.IsAny<Func<PlaybackState, PlaybackState>>()))
                      .Returns((string id, Func<PlaybackState, PlaybackState> updateFunc) => updateFunc(state));
 

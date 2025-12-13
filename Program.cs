@@ -55,13 +55,19 @@ public class Program
             });
         }
 
+        // Register repositories
+        builder.Services.AddScoped<Repositories.IPlaylistRepository, Repositories.PlaylistRepository>();
+        builder.Services.AddScoped<Repositories.ISongRepository, Repositories.SongRepository>();
+        builder.Services.AddScoped<Repositories.IUserRepository, Repositories.UserRepository>();
+        builder.Services.AddScoped<Repositories.IRefreshTokenRepository, Repositories.RefreshTokenRepository>();
+
         // Register services
         builder.Services.AddScoped<IJwtService, JwtService>();
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<IAuthorService, AuthorService>();
         builder.Services.AddScoped<IUserService, UserService>();
         builder.Services.AddScoped<ISongService, SongService>();
-        builder.Services.AddScoped<IPlaylistManagementService, PlaylistManagementService>();
+        builder.Services.AddScoped<IPlaylistService, PlaylistService>();
         builder.Services.AddScoped<IPasswordHasher<Models.User>, PasswordHasher<Models.User>>();
         
         // Register TUS services
@@ -127,7 +133,6 @@ public class Program
         builder.Services.AddSignalR();
         builder.Services.AddSingleton<IUserPlaylistTracker<string, string>, UserPlaylistTracker>();
         builder.Services.AddSingleton<IPlaybackStateStore<string, DTOs.PlaybackState>, PlaybackStateStore>();
-        builder.Services.AddScoped<IPlaylistService, PlaylistService>();
         builder.Services.AddHostedService<PlaybackUpdateService>();
 
         var app = builder.Build();

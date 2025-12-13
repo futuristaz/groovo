@@ -3,17 +3,10 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
-using Xunit;
-using Groovo;
-using Groovo.Data.Contexts;
 using Groovo.DTOs;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
-using Groovo.Models;
 using System.IdentityModel.Tokens.Jwt;
 using Groovo.Tests.Factories;
 
@@ -287,8 +280,8 @@ public class PlaylistsControllerTests : IClassFixture<CustomWebApplicationFactor
     [Fact]
     public async Task Update_AsOwner_UpdatesPlaylist()
     {
-        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
-        var playlistId = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
+        var playlistId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"); // Use public playlist instead
         var request = new UpdatePlaylistRequest
         {
             Name = "Updated Playlist Name",

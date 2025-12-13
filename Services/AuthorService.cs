@@ -1,33 +1,31 @@
-using Microsoft.EntityFrameworkCore;
-using Groovo.Data.Contexts;
 using Groovo.DTOs.Responses;
-using Groovo.Models;
+using Groovo.Repositories;
+using Groovo.DTOs;
 
 namespace Groovo.Services
 {
     public class AuthorService : IAuthorService
     {
-        private readonly ApplicationDbContext _context;
         private readonly ILogger<AuthorService> _logger;
+        private readonly ISongRepository _songRepository;
 
-        public AuthorService(ApplicationDbContext context, ILogger<AuthorService> logger)
+        public AuthorService(ILogger<AuthorService> logger, ISongRepository songRepository)
         {
-            _context = context;
             _logger = logger;
+            _songRepository = songRepository;
         }
 
         public async Task<SongResponse?> GetAuthorSongByIdAsync(Guid songId, Guid userId, bool isAdmin)
         {
             try
             {
-                var song = await _context.Songs
-                    .Include(s => s.SongAuthors)
-                    .ThenInclude(sa => sa.User)
-                    .Where(s => s.Id == songId && (isAdmin ||
-                        s.SongAuthors.Any(sa => sa.UserId == userId)))
-                    .FirstOrDefaultAsync();
+                var song = await _songRepository.GetByIdAsync(songId, includeAuthors: true);
 
                 if (song == null)
+                    return null;
+
+                // Check permissions
+                if (!isAdmin && !song.SongAuthors.Any(sa => sa.UserId == userId))
                     return null;
 
                 var songResponse = new SongResponse(
