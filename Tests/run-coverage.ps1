@@ -8,8 +8,13 @@ try {
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "TestResults"
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "coveragereport"
 
-    Write-Host "Running tests..." -ForegroundColor Cyan
-    dotnet test --settings coverlet.runsettings
+    Write-Host "Running tests with coverage..." -ForegroundColor Cyan
+    
+    # Run tests with coverage collection, excluding Models and DTOs folders
+    dotnet test `
+        --collect:"XPlat Code Coverage" `
+        -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByFile="**/*Migrations*/**,**/*migrations*/**" `
+        DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
     
     $testExitCode = $LASTEXITCODE
     if ($testExitCode -ne 0) {

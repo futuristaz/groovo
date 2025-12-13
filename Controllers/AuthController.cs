@@ -46,7 +46,8 @@ public class AuthController : ControllerBase
             );
 
             _logger.LogInformation("User registered successfully: {Email}", request.Email);
-            return CreatedAtAction(nameof(Register), response);
+            // Return 201 with response body. Use the overload that accepts route values and value.
+            return CreatedAtAction(nameof(Register), routeValues: null, value: response);
         }
         catch (UserAlreadyExistsException ex)
         {
