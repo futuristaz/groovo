@@ -72,7 +72,7 @@ public class PlaybackUpdateService : BackgroundService
                 }
 
                 var timeSinceUpdate = (DateTime.UtcNow - state.LastUpdated).TotalSeconds;
-                var newPosition = state.CurrentPosition + (int)timeSinceUpdate;
+                var newPosition = state.CurrentPosition + timeSinceUpdate;
 
                 if (newPosition >= state.CurrentLength)
                 {

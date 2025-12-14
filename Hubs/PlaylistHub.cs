@@ -157,7 +157,7 @@ public class PlaylistHub : Hub
                     if (ps.IsPlaying)
                     {
                         var timeSinceUpdate = (DateTime.UtcNow - ps.LastUpdated).TotalSeconds;
-                        ps.CurrentPosition = Math.Min(ps.CurrentPosition + (int)timeSinceUpdate, ps.CurrentLength);
+                        ps.CurrentPosition = Math.Min(ps.CurrentPosition + timeSinceUpdate, ps.CurrentLength);
                     }
                     
                     ps.IsPlaying = status;
@@ -243,7 +243,7 @@ public class PlaylistHub : Hub
         }
     }
 
-    public async Task Seek(int position)
+    public async Task Seek(double position)
     {
         if (position < 0)
         {
@@ -304,7 +304,7 @@ public class PlaylistHub : Hub
             if (state.IsPlaying)
             {
                 var timeSinceUpdate = (DateTime.UtcNow - state.LastUpdated).TotalSeconds;
-                state.CurrentPosition = Math.Min(state.CurrentPosition + (int)timeSinceUpdate, state.CurrentLength);
+                state.CurrentPosition = Math.Min(state.CurrentPosition + timeSinceUpdate, state.CurrentLength);
             }
 
             await Clients.Caller.SendAsync("PlaybackState", state);
