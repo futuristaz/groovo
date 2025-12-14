@@ -565,7 +565,7 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
         Assert.NotNull(apiResponse);
         Assert.True(apiResponse.Success);
         Assert.NotNull(apiResponse.Data);
-        Assert.Equal(3, apiResponse.Data.Count); // Public and Private playlists owned + 1 public album
+        Assert.Equal(2, apiResponse.Data.Count); // Public and Private playlists owned by regularUser
     }
 
     [Fact]
@@ -582,7 +582,7 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
         Assert.NotNull(apiResponse);
         Assert.True(apiResponse.Success);
         Assert.NotNull(apiResponse.Data);
-        Assert.Equal(3, apiResponse.Data.Count); // Public and Private playlists owned + 1 public album
+        Assert.Equal(2, apiResponse.Data.Count); // Public and Private playlists owned by regularUser
     }
 
     [Fact]
@@ -618,18 +618,14 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task GetUserPlaylists_NonExistentUser_ReturnsPublicPlaylists()
+    public async Task GetUserPlaylists_NonExistentUser_ReturnsNotFound()
     {
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var userId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
         var response = await _client.GetAsync($"/api/v1/users/{userId}/playlists");
 
-        response.EnsureSuccessStatusCode();
-        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<PlaylistSummaryResponse>>>();
-        Assert.NotNull(apiResponse);
-        Assert.Equal(2, apiResponse.Data!.Count); // Returns public playlists (album + public playlist)
-        Assert.All(apiResponse.Data, p => Assert.True(p.IsPublic));
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]

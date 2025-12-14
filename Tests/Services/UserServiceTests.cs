@@ -193,7 +193,7 @@ public class UserServiceTests
             CreatedAt = DateTime.UtcNow
         };
 
-        _playlistRepositoryMock.Setup(r => r.GetByUserIdAsync(userId, false))
+        _playlistRepositoryMock.Setup(r => r.GetByUserIdAsync(userId, true))
             .ReturnsAsync(new List<Playlist> { playlist });
 
         var result = await _service.GetUserPlaylistsAsync(userId, showFullList: true);

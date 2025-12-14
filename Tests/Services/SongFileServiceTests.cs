@@ -78,7 +78,7 @@ public class SongFileServiceTests : IDisposable
         Assert.Contains("songs", result);
         Assert.Contains(uploadId, result);
 
-        var finalFilePath = Path.Combine(_config.FinalPath, result.Replace("/", "\\"));
+        var finalFilePath = Path.Combine(_config.FinalPath, result.Replace("/", Path.DirectorySeparatorChar.ToString()));
         Assert.True(File.Exists(finalFilePath));
         Assert.False(File.Exists(tempFilePath)); // moved
         Assert.False(File.Exists(metadataPath)); // metadata deleted

@@ -59,19 +59,19 @@ public class PlaylistRepository : IPlaylistRepository
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 
-    public async Task<List<Playlist>> GetByUserIdAsync(Guid userId, bool onlyOwned = false)
+    public async Task<List<Playlist>> GetByUserIdAsync(Guid userId, bool showFullList = false)
     {
         var query = _context.Playlists
             .Include(p => p.PlaylistOwners)
             .AsQueryable();
 
-        if (onlyOwned)
+        if (showFullList)
         {
             query = query.Where(p => p.PlaylistOwners.Any(po => po.UserId == userId));
         }
         else
         {
-            query = query.Where(p => p.IsPublic || p.PlaylistOwners.Any(po => po.UserId == userId));
+            query = query.Where(p => p.IsPublic && p.PlaylistOwners.Any(po => po.UserId == userId));
         }
 
         return await query

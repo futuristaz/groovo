@@ -249,4 +249,87 @@ public class AuthService : IAuthService
     {
         return request.Cookies["refreshToken"];
     }
+
+    public async Task<bool> UpdateProfileAsync(Guid userId, string? name, string? bio, string? imageUrl, string? email)
+    {
+        try
+        {
+            var existing = await _userRepository.GetByAsync(id: userId);
+            if (existing == null)
+                return false;
+
+            // Only update email if provided and different
+            if (!string.IsNullOrWhiteSpace(email) && existing.Email != email)
+            {
+                if (await _userRepository.ExistsAsync(email: email, excludeId: userId))
+                {
+                    throw new EmailAlreadyExistsException(email);
+                }
+                existing.Email = email;
+            }
+
+            // Only update fields if provided
+            if (!string.IsNullOrWhiteSpace(name))
+                existing.Name = name;
+            
+            if (bio != null)
+                existing.Bio = bio;
+            
+            if (imageUrl != null)
+                existing.ImageUrl = imageUrl;
+
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            await _userRepository.UpdateAsync(existing);
+
+            _logger.LogInformation("Updated profile for user {UserId}: {UserName}", userId, existing.Name);
+
+            return true;
+        }
+        catch (EmailAlreadyExistsException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating profile for user {UserId}", userId);
+            throw;
+        }
+    }
+
+    public async Task<bool> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword)
+    {
+        try
+        {
+            var user = await _userRepository.GetByAsync(id: userId);
+            if (user == null)
+                return false;
+
+            // Verify current password
+            var verificationResult = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, currentPassword);
+            if (verificationResult == PasswordVerificationResult.Failed)
+            {
+                throw new IncorrectPasswordException();
+            }
+
+            // Hash and update new password
+            user.PasswordHash = _passwordHasher.HashPassword(user, newPassword);
+            user.UpdatedAt = DateTime.UtcNow;
+
+            await _userRepository.UpdateAsync(user);
+
+            _logger.LogInformation("Password changed successfully for user {UserId}", userId);
+
+            return true;
+        }
+        catch (IncorrectPasswordException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error changing password for user {UserId}", userId);
+            throw;
+        }
+    }
 }

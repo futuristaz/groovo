@@ -45,7 +45,8 @@ public class Program
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
             {
                 //options.UseInMemoryDatabase("GroovoInMemoryDb");
-                options.UseSqlite("Data Source=development.sqlite");
+                var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+                options.UseSqlite(connectionString);
 
                 if (builder.Environment.IsDevelopment())
                 {
@@ -145,25 +146,31 @@ public class Program
             if (app.Environment.IsDevelopment())
             {
                 var resetDb = args.Contains("--reset-db", StringComparer.OrdinalIgnoreCase);
-                var enableSeeding = args.Contains("--seed-db", StringComparer.OrdinalIgnoreCase);
 
                 if (resetDb)
                 {
                     await context.Database.EnsureDeletedAsync();
-                    await context.Database.EnsureCreatedAsync();
-                    if (enableSeeding)
-                    {
-                        await DatabaseSeeder.SeedAsync(context);
-                    }
                 }
-                else
-                {
-                    await context.Database.EnsureCreatedAsync();
+            }
+
+            if (!context.Database.IsInMemory())
+            {
+                try {
+                    await context.Database.MigrateAsync();
+                } catch (Exception ex) {
+                    Log.Fatal(ex, "Database migration failed");
+                    throw;
                 }
             }
             else
             {
                 await context.Database.EnsureCreatedAsync();
+            }
+
+            var enableSeeding = args.Contains("--seed-db", StringComparer.OrdinalIgnoreCase);
+            if (enableSeeding)
+            {
+                await DatabaseSeeder.SeedAsync(context);
             }
         }
         
