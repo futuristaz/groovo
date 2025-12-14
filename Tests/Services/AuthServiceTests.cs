@@ -224,4 +224,255 @@ public class AuthServiceTests
 
         await Assert.ThrowsAsync<TokenRevocationException>(() => _service.RevokeTokenAsync("revoked"));
     }
+
+    #region Profile Settings Tests
+
+    [Fact]
+    public async Task UpdateProfileAsync_UpdatesAllFields_WhenAllProvided()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var existingUser = new User
+        {
+            Id = userId,
+            Name = "Old Name",
+            Email = "old@example.com",
+            Bio = "Old bio",
+            ImageUrl = "old-image.jpg",
+            PasswordHash = "hashedPassword"
+        };
+
+        _userRepositoryMock.Setup(r => r.GetByAsync(userId, null))
+            .ReturnsAsync(existingUser);
+
+        _userRepositoryMock.Setup(r => r.ExistsAsync(null, "new@example.com", userId))
+            .ReturnsAsync(false);
+
+        User updatedUser = null!;
+        _userRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<User>()))
+            .Callback<User>(u => updatedUser = u)
+            .Returns(Task.CompletedTask);
+
+        // Act
+        var result = await _service.UpdateProfileAsync(userId, "New Name", "New bio", "new-image.jpg", "new@example.com");
+
+        // Assert
+        Assert.True(result);
+        Assert.NotNull(updatedUser);
+        Assert.Equal("New Name", updatedUser.Name);
+        Assert.Equal("new@example.com", updatedUser.Email);
+        Assert.Equal("New bio", updatedUser.Bio);
+        Assert.Equal("new-image.jpg", updatedUser.ImageUrl);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_UpdatesOnlyProvidedFields()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var existingUser = new User
+        {
+            Id = userId,
+            Name = "Old Name",
+            Email = "old@example.com",
+            Bio = "Old bio",
+            ImageUrl = "old-image.jpg",
+            PasswordHash = "hashedPassword"
+        };
+
+        _userRepositoryMock.Setup(r => r.GetByAsync(userId, null))
+            .ReturnsAsync(existingUser);
+
+        User updatedUser = null!;
+        _userRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<User>()))
+            .Callback<User>(u => updatedUser = u)
+            .Returns(Task.CompletedTask);
+
+        // Act - only update name
+        var result = await _service.UpdateProfileAsync(userId, "New Name", null, null, null);
+
+        // Assert
+        Assert.True(result);
+        Assert.NotNull(updatedUser);
+        Assert.Equal("New Name", updatedUser.Name);
+        Assert.Equal("old@example.com", updatedUser.Email); // unchanged
+        Assert.Equal("Old bio", updatedUser.Bio); // unchanged
+        Assert.Equal("old-image.jpg", updatedUser.ImageUrl); // unchanged
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_AllowsEmptyStringForBioAndImageUrl()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var existingUser = new User
+        {
+            Id = userId,
+            Name = "Name",
+            Email = "user@example.com",
+            Bio = "Some bio",
+            ImageUrl = "some-image.jpg",
+            PasswordHash = "hashedPassword"
+        };
+
+        _userRepositoryMock.Setup(r => r.GetByAsync(userId, null))
+            .ReturnsAsync(existingUser);
+
+        User updatedUser = null!;
+        _userRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<User>()))
+            .Callback<User>(u => updatedUser = u)
+            .Returns(Task.CompletedTask);
+
+        // Act - set bio and imageUrl to empty strings
+        var result = await _service.UpdateProfileAsync(userId, null, "", "", null);
+
+        // Assert
+        Assert.True(result);
+        Assert.NotNull(updatedUser);
+        Assert.Equal("", updatedUser.Bio);
+        Assert.Equal("", updatedUser.ImageUrl);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_Throws_WhenEmailAlreadyExists()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var existingUser = new User
+        {
+            Id = userId,
+            Name = "Name",
+            Email = "user@example.com",
+            PasswordHash = "hashedPassword"
+        };
+
+        _userRepositoryMock.Setup(r => r.GetByAsync(userId, null))
+            .ReturnsAsync(existingUser);
+
+        _userRepositoryMock.Setup(r => r.ExistsAsync(null, "taken@example.com", userId))
+            .ReturnsAsync(true);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<EmailAlreadyExistsException>(() => 
+            _service.UpdateProfileAsync(userId, null, null, null, "taken@example.com"));
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_DoesNotCheckEmail_WhenEmailUnchanged()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var existingUser = new User
+        {
+            Id = userId,
+            Name = "Old Name",
+            Email = "user@example.com",
+            PasswordHash = "hashedPassword"
+        };
+
+        _userRepositoryMock.Setup(r => r.GetByAsync(userId, null))
+            .ReturnsAsync(existingUser);
+
+        User updatedUser = null!;
+        _userRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<User>()))
+            .Callback<User>(u => updatedUser = u)
+            .Returns(Task.CompletedTask);
+
+        // Act - same email
+        var result = await _service.UpdateProfileAsync(userId, "New Name", null, null, "user@example.com");
+
+        // Assert
+        Assert.True(result);
+        _userRepositoryMock.Verify(r => r.ExistsAsync(It.IsAny<Guid?>(), It.IsAny<string>(), It.IsAny<Guid?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateProfileAsync_ReturnsFalse_WhenUserNotFound()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        _userRepositoryMock.Setup(r => r.GetByAsync(userId, null))
+            .ReturnsAsync((User?)null);
+
+        // Act
+        var result = await _service.UpdateProfileAsync(userId, "Name", null, null, null);
+
+        // Assert
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_ChangesPassword_WhenCurrentPasswordCorrect()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var user = new User
+        {
+            Id = userId,
+            Email = "user@example.com",
+            PasswordHash = "oldHashedPassword"
+        };
+
+        _userRepositoryMock.Setup(r => r.GetByAsync(userId, null))
+            .ReturnsAsync(user);
+
+        _hasherMock.Setup(h => h.VerifyHashedPassword(user, user.PasswordHash, "currentPass"))
+            .Returns(PasswordVerificationResult.Success);
+
+        _hasherMock.Setup(h => h.HashPassword(user, "newPass"))
+            .Returns("newHashedPassword");
+
+        User updatedUser = null!;
+        _userRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<User>()))
+            .Callback<User>(u => updatedUser = u)
+            .Returns(Task.CompletedTask);
+
+        // Act
+        var result = await _service.ChangePasswordAsync(userId, "currentPass", "newPass");
+
+        // Assert
+        Assert.True(result);
+        Assert.NotNull(updatedUser);
+        Assert.Equal("newHashedPassword", updatedUser.PasswordHash);
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_Throws_WhenCurrentPasswordIncorrect()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var user = new User
+        {
+            Id = userId,
+            Email = "user@example.com",
+            PasswordHash = "hashedPassword"
+        };
+
+        _userRepositoryMock.Setup(r => r.GetByAsync(userId, null))
+            .ReturnsAsync(user);
+
+        _hasherMock.Setup(h => h.VerifyHashedPassword(user, user.PasswordHash, "wrongPass"))
+            .Returns(PasswordVerificationResult.Failed);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<IncorrectPasswordException>(() => 
+            _service.ChangePasswordAsync(userId, "wrongPass", "newPass"));
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_ReturnsFalse_WhenUserNotFound()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        _userRepositoryMock.Setup(r => r.GetByAsync(userId, null))
+            .ReturnsAsync((User?)null);
+
+        // Act
+        var result = await _service.ChangePasswordAsync(userId, "currentPass", "newPass");
+
+        // Assert
+        Assert.False(result);
+    }
+
+    #endregion
 }
