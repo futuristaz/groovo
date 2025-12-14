@@ -70,6 +70,9 @@ public class Program
         builder.Services.AddScoped<IPlaylistService, PlaylistService>();
         builder.Services.AddScoped<IPasswordHasher<Models.User>, PasswordHasher<Models.User>>();
         
+        // Register Hub services
+        builder.Services.AddScoped<IShuffleService, ShuffleService>();
+        
         // Register TUS services
         builder.Services.AddSingleton<TusStorageConfiguration>();
         builder.Services.AddScoped<ISongFileService, SongFileService>();

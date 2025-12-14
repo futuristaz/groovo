@@ -17,4 +17,5 @@ public interface IPlaylistRepository
     Task<int> GetMaxSongOrderAsync(Guid playlistId);
     Task<bool> CanUserAccessPlaylistAsync(Guid playlistId, Guid userId);
     Task<Guid?> GetNextSongIdAsync(Guid playlistId, Guid currentSongId);
+    Task<List<Guid>> GetAllActiveSongIdsInOrderAsync(Guid playlistId);
 }

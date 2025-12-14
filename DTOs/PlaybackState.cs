@@ -9,4 +9,6 @@ public class PlaybackState
     public int CurrentLength { get; set; } = 0;
     public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
     public int CurrentlyListening { get; set; } = 0;
+    public bool IsShuffleEnabled { get; set; } = false;
+    public int? ShuffleSeed { get; set; }
 }

@@ -15,6 +15,7 @@ public class PlaylistHub : Hub
     private readonly IUserPlaylistTracker<string, string> _userPlaylistTracker;
     private readonly IPlaylistRepository _playlistRepository;
     private readonly ISongRepository _songRepository;
+    private readonly IShuffleService _shuffleService;
     
 
     public PlaylistHub(
@@ -22,7 +23,8 @@ public class PlaylistHub : Hub
         IUserPlaylistTracker<string, string> userPlaylistTracker,
         IPlaybackStateStore<string, PlaybackState> playbackStateStore,
         IPlaylistRepository playlistRepository,
-        ISongRepository songRepository
+        ISongRepository songRepository,
+        IShuffleService shuffleService
     )
     {
         _logger = logger;
@@ -30,6 +32,7 @@ public class PlaylistHub : Hub
         _playbackStateStore = playbackStateStore;
         _playlistRepository = playlistRepository;
         _songRepository = songRepository;
+        _shuffleService = shuffleService;
     }
 
     public override async Task OnConnectedAsync()
@@ -199,14 +202,32 @@ public class PlaylistHub : Hub
 
         try
         {
-            var nextSongId = await _playlistRepository.GetNextSongIdAsync(Guid.Parse(playlistId), songId.Value);
+            // Get current state to check shuffle mode
+            var currentState = _playbackStateStore.GetOrCreate(playlistId);
+            Guid? calculatedNextSongId;
             
+            if (currentState.IsShuffleEnabled && currentState.ShuffleSeed.HasValue)
+            {
+                calculatedNextSongId = await _shuffleService.GetNextShuffledSongAsync(
+                    Guid.Parse(playlistId),
+                    songId.Value,
+                    currentState.ShuffleSeed.Value
+                );
+            }
+            else
+            {
+                calculatedNextSongId = await _playlistRepository.GetNextSongIdAsync(
+                    Guid.Parse(playlistId),
+                    songId.Value
+                );
+            }
+
             var newState = _playbackStateStore.TryUpdate(playlistId, ps =>
             {
                 ps.CurrentSongId = songId.Value;
                 ps.CurrentPosition = 0;
                 ps.CurrentLength = songLength;
-                ps.NextSongId = nextSongId;
+                ps.NextSongId = calculatedNextSongId;
                 ps.IsPlaying = true;
                 ps.LastUpdated = DateTime.UtcNow;
                 return ps;
@@ -293,6 +314,41 @@ public class PlaylistHub : Hub
         {
             _logger.LogError(ex, "Error getting playback state for playlist {PlaylistId}", playlistId);
             throw new HubException("Failed to get playback state");
+        }
+    }
+
+    public async Task ToggleShuffle(bool enabled)
+    {
+        var playlistId = _userPlaylistTracker.GetPlaylist(Context.ConnectionId);
+
+        if (playlistId == null)
+        {
+            throw new HubException("Not in any playlist");
+        }
+
+        try
+        {
+            var state = _playbackStateStore.GetOrCreate(playlistId);
+
+            // Ignore if already in the requested state
+            if (state.IsShuffleEnabled == enabled)
+            {
+                return;
+            }
+
+            // Update shuffle state
+            _playbackStateStore.TryUpdate(playlistId, ps =>
+            {
+                ps.IsShuffleEnabled = enabled;
+                ps.ShuffleSeed = enabled ? _shuffleService.GenerateShuffleSeed() : null;
+                return ps;
+            });
+        }
+        catch (HubException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling shuffle for playlist {PlaylistId}", playlistId);
+            throw new HubException("Failed to toggle shuffle");
         }
     }
 }
