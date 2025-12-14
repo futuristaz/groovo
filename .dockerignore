@@ -1,0 +1,49 @@
+# Build artifacts
+bin/
+obj/
+out/
+build/
+
+# Test artifacts
+**/TestResults/
+**/coveragereport/
+coverlet.runsettings
+
+# Development databases and uploads
+*.db
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+uploads/
+logs/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# GitHub
+.github/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation
+README.md
+*.md
+
+# Environment files
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
