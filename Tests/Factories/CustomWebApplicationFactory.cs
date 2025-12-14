@@ -91,131 +91,143 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         return host;
     }
 
-    private void SeedTestData(ApplicationDbContext context)
+   private void SeedTestData(ApplicationDbContext context)
+{
+    
+    // --- Users ---
+    var adminUser = new User
     {
-        
-        // --- Users ---
-        var adminUser = new User
-        {
-            Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-            Name = "Admin User",
-            Email = "admin@test.com",
-            PasswordHash = "hashedpassword",
-            Role = UserRole.Admin,
-            Bio = "Admin bio",
-            ImageUrl = "https://example.com/admin.png",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-        var regularUser = new User
-        {
-            Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
-            Name = "Regular User",
-            Email = "user@test.com",
-            PasswordHash = "hashedpassword",
-            Role = UserRole.User,
-            Bio = "Regular user bio",
-            ImageUrl = "https://example.com/user.png",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-        var authorUser = new User
-        {
-            Id = Guid.Parse("33333333-3333-3333-3333-333333333333"),
-            Name = "Author User",
-            Email = "author@test.com",
-            PasswordHash = "hashedpassword",
-            Role = UserRole.Author,
-            Bio = "Author bio",
-            ImageUrl = "https://example.com/author.png",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-        context.Users.AddRange(adminUser, regularUser, authorUser);
+        Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+        Name = "Admin User",
+        Email = "admin@test.com",
+        PasswordHash = "hashedpassword",
+        Role = UserRole.Admin,
+        Bio = "Admin bio",
+        ImageUrl = "https://example.com/admin.png",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    var regularUser = new User
+    {
+        Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+        Name = "Regular User",
+        Email = "user@test.com",
+        PasswordHash = "hashedpassword",
+        Role = UserRole.User,
+        Bio = "Regular user bio",
+        ImageUrl = "https://example.com/user.png",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    var authorUser = new User
+    {
+        Id = Guid.Parse("33333333-3333-3333-3333-333333333333"),
+        Name = "Author User",
+        Email = "author@test.com",
+        PasswordHash = "hashedpassword",
+        Role = UserRole.Author,
+        Bio = "Author bio",
+        ImageUrl = "https://example.com/author.png",
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    context.Users.AddRange(adminUser, regularUser, authorUser);
 
-        // --- Playlists ---
-        var publicPlaylist = new Playlist
-        {
-            Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
-            Name = "Public Playlist",
-            Description = "A public playlist",
-            IsPublic = true,
-            IsAlbum = false,
-            IsActive = true,
-            TotalTime = 600,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-        var privatePlaylist = new Playlist
-        {
-            Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
-            Name = "Private Playlist",
-            Description = "A private playlist",
-            IsPublic = false,
-            IsAlbum = false,
-            IsActive = true,
-            TotalTime = 300,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-        var album = new Playlist
-        {
-            Id = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
-            Name = "Test Album",
-            Description = "An album",
-            IsPublic = true,
-            IsAlbum = true,
-            IsActive = true,
-            TotalTime = 1200,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-        context.Playlists.AddRange(publicPlaylist, privatePlaylist, album);
+    // --- Playlists ---
+    var publicPlaylist = new Playlist
+    {
+        Id = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+        Name = "Public Playlist",
+        Description = "A public playlist",
+        IsPublic = true,
+        IsAlbum = false,
+        IsActive = true,
+        TotalTime = 600,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    var privatePlaylist = new Playlist
+    {
+        Id = Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"),
+        Name = "Private Playlist",
+        Description = "A private playlist",
+        IsPublic = false,
+        IsAlbum = false,
+        IsActive = true,
+        TotalTime = 300,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    var album = new Playlist
+    {
+        Id = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+        Name = "Test Album",
+        Description = "An album",
+        IsPublic = true,
+        IsAlbum = true,
+        IsActive = true,
+        TotalTime = 1200,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    context.Playlists.AddRange(publicPlaylist, privatePlaylist, album);
 
-        // --- Playlist Owners ---
-        context.PlaylistOwners.AddRange(
-            new PlaylistOwner { PlaylistId = publicPlaylist.Id, UserId = regularUser.Id },
-            new PlaylistOwner { PlaylistId = privatePlaylist.Id, UserId = regularUser.Id },
-            new PlaylistOwner { PlaylistId = album.Id, UserId = authorUser.Id }
-        );
+    // --- Playlist Owners ---
+    context.PlaylistOwners.AddRange(
+        new PlaylistOwner { PlaylistId = publicPlaylist.Id, UserId = regularUser.Id },
+        new PlaylistOwner { PlaylistId = privatePlaylist.Id, UserId = regularUser.Id },
+        new PlaylistOwner { PlaylistId = album.Id, UserId = authorUser.Id }
+    );
 
-        // --- Songs ---
-        var song1 = new Song
-        {
-            Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
-            Name = "Test Song 1",
-            Album = album.Id,
-            AudioUrl = "http://test.com/song1.mp3",
-            ReleaseDate = DateTime.UtcNow,
-            Length = 180,
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-        var song2 = new Song
-        {
-            Id = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
-            Name = "Test Song 2",
-            Album = album.Id,
-            AudioUrl = "http://test.com/song2.mp3",
-            ReleaseDate = DateTime.UtcNow,
-            Length = 240,
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-        context.Songs.AddRange(song1, song2);
+    // --- Songs ---
+    var song1 = new Song
+    {
+        Id = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+        Name = "Test Song 1",
+        Description = "First test song",
+        Album = album.Id,
+        Genre = "Rock",
+        Picture = "http://test.com/picture1.jpg",
+        AudioUrl = "http://test.com/song1.mp3",
+        ReleaseDate = DateTime.UtcNow,
+        Length = 180,
+        IsActive = true,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    var song2 = new Song
+    {
+        Id = Guid.Parse("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
+        Name = "Test Song 2",
+        Description = "Second test song",
+        Album = album.Id,
+        Genre = "Jazz",
+        Picture = "http://test.com/picture2.jpg",
+        AudioUrl = "http://test.com/song2.mp3",
+        ReleaseDate = DateTime.UtcNow,
+        Length = 240,
+        IsActive = true,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
+    context.Songs.AddRange(song1, song2);
 
-        // --- PlaylistSongs ---
-        context.PlaylistSongs.Add(new PlaylistSong
-        {
-            PlaylistId = publicPlaylist.Id,
-            SongId = song1.Id,
-            Order = 0
-        });
+    // --- Song Authors ---
+    context.SongAuthors.AddRange(
+        new SongAuthor { SongId = song1.Id, UserId = authorUser.Id },
+        new SongAuthor { SongId = song2.Id, UserId = authorUser.Id }
+    );
 
-        context.SaveChanges();
-    }
+    // --- PlaylistSongs ---
+    context.PlaylistSongs.Add(new PlaylistSong
+    {
+        PlaylistId = publicPlaylist.Id,
+        SongId = song1.Id,
+        Order = 0
+    });
+
+    context.SaveChanges();
+}
 
     protected override void Dispose(bool disposing)
     {
