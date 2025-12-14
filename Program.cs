@@ -45,7 +45,8 @@ public class Program
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
             {
                 //options.UseInMemoryDatabase("GroovoInMemoryDb");
-                options.UseSqlite("Data Source=development.sqlite");
+                var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+                options.UseSqlite(connectionString);
 
                 if (builder.Environment.IsDevelopment())
                 {
