@@ -145,25 +145,24 @@ public class Program
             if (app.Environment.IsDevelopment())
             {
                 var resetDb = args.Contains("--reset-db", StringComparer.OrdinalIgnoreCase);
-                var enableSeeding = args.Contains("--seed-db", StringComparer.OrdinalIgnoreCase);
 
                 if (resetDb)
                 {
                     await context.Database.EnsureDeletedAsync();
-                    await context.Database.EnsureCreatedAsync();
-                    if (enableSeeding)
-                    {
-                        await DatabaseSeeder.SeedAsync(context);
-                    }
-                }
-                else
-                {
-                    await context.Database.EnsureCreatedAsync();
                 }
             }
-            else
+
+            try {
+                await context.Database.MigrateAsync();
+            } catch (Exception ex) {
+                Log.Fatal(ex, "Database migration failed");
+                throw;
+            }
+
+            var enableSeeding = args.Contains("--seed-db", StringComparer.OrdinalIgnoreCase);
+            if (enableSeeding)
             {
-                await context.Database.EnsureCreatedAsync();
+                await DatabaseSeeder.SeedAsync(context);
             }
         }
         
