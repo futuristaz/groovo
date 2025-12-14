@@ -193,4 +193,72 @@ public class AuthController : ControllerBase
             return StatusCode(500, "Internal server error");
         }
     }
+
+    /// <summary>PUT: /api/v1/auth/me</summary>
+    /// <returns>204 if successful, 400 if validation fails, 409 if email already exists</returns>
+    [HttpPut("me")]
+    [Authorize]
+    public async Task<ActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "");
+            var success = await _authService.UpdateProfileAsync(userId, request.Name, request.Bio, request.ImageUrl, request.Email);
+            
+            if (!success)
+                return NotFound("User not found.");
+
+            _logger.LogInformation("Profile updated successfully for user {UserId}", userId);
+            return NoContent();
+        }
+        catch (EmailAlreadyExistsException ex)
+        {
+            _logger.LogWarning(ex, "Profile update failed - email already exists");
+            return Conflict(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating user profile");
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>PUT: /api/v1/auth/me/password</summary>
+    /// <returns>204 if successful, 400 if current password is incorrect</returns>
+    [HttpPut("me/password")]
+    [Authorize]
+    public async Task<ActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "");
+            var success = await _authService.ChangePasswordAsync(userId, request.CurrentPassword, request.NewPassword);
+            
+            if (!success)
+                return NotFound("User not found.");
+
+            _logger.LogInformation("Password changed successfully for user {UserId}", userId);
+            return NoContent();
+        }
+        catch (IncorrectPasswordException ex)
+        {
+            _logger.LogWarning(ex, "Password change failed - incorrect current password");
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error changing password");
+            return StatusCode(500, "Internal server error");
+        }
+    }
 }
