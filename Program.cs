@@ -153,11 +153,18 @@ public class Program
                 }
             }
 
-            try {
-                await context.Database.MigrateAsync();
-            } catch (Exception ex) {
-                Log.Fatal(ex, "Database migration failed");
-                throw;
+            if (!context.Database.IsInMemory())
+            {
+                try {
+                    await context.Database.MigrateAsync();
+                } catch (Exception ex) {
+                    Log.Fatal(ex, "Database migration failed");
+                    throw;
+                }
+            }
+            else
+            {
+                await context.Database.EnsureCreatedAsync();
             }
 
             var enableSeeding = args.Contains("--seed-db", StringComparer.OrdinalIgnoreCase);
