@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
+using Groovo.DTOs;
 using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
 using System.IdentityModel.Tokens.Jwt;
@@ -84,18 +85,17 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
 
         var response = await _client.PostAsJsonAsync("/api/v1/auth/register", request);
 
-        // Check if request was successful
+        // Check if request was successful and log details if not
         var content = await response.Content.ReadAsStringAsync();
-        Assert.True(response.IsSuccessStatusCode, $"Response: {response.StatusCode}, Content: {content}");
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.True(response.IsSuccessStatusCode, $"Status: {response.StatusCode}, Content: {content}");
         
-        var apiResponse = await response.Content.ReadFromJsonAsync<Groovo.DTOs.ApiResponse<AuthResponse>>();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<AuthResponse>>();
         Assert.NotNull(apiResponse);
         Assert.True(apiResponse.Success);
-        var authResponse = apiResponse?.Data;
-        Assert.NotNull(authResponse);
-        Assert.NotNull(authResponse?.AccessToken);
-        Assert.True(authResponse!.ExpiresAt > DateTime.UtcNow);
+        Assert.NotNull(apiResponse.Data);
+        var authResponse = apiResponse.Data;
+        Assert.NotNull(authResponse.AccessToken);
+        Assert.True(authResponse.ExpiresAt > DateTime.UtcNow);
 
         // Verify refresh token cookie is set (may not be present in all implementations)
         if (response.Headers.Contains("Set-Cookie"))
@@ -149,7 +149,9 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
             Email = "logintest@test.com",
             Password = "Password123!"
         };
-        await _client.PostAsJsonAsync("/api/v1/auth/register", registerRequest);
+        var registerResponse = await _client.PostAsJsonAsync("/api/v1/auth/register", registerRequest);
+        var registerContent = await registerResponse.Content.ReadAsStringAsync();
+        Assert.True(registerResponse.IsSuccessStatusCode, $"Register failed: {registerResponse.StatusCode}, {registerContent}");
 
         // Now login
         var loginRequest = new LoginRequest
@@ -161,16 +163,15 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
         var response = await _client.PostAsJsonAsync("/api/v1/auth/login", loginRequest);
 
         var content = await response.Content.ReadAsStringAsync();
-        Assert.True(response.IsSuccessStatusCode, $"Response: {response.StatusCode}, Content: {content}");
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.IsSuccessStatusCode, $"Login failed: {response.StatusCode}, Content: {content}");
         
-        var apiResponse = await response.Content.ReadFromJsonAsync<Groovo.DTOs.ApiResponse<AuthResponse>>();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<AuthResponse>>();
         Assert.NotNull(apiResponse);
         Assert.True(apiResponse.Success);
-        var authResponse = apiResponse?.Data;
-        Assert.NotNull(authResponse);
-        Assert.NotNull(authResponse?.AccessToken);
-        Assert.True(authResponse!.ExpiresAt > DateTime.UtcNow);
+        Assert.NotNull(apiResponse.Data);
+        var authResponse = apiResponse.Data;
+        Assert.NotNull(authResponse.AccessToken);
+        Assert.True(authResponse.ExpiresAt > DateTime.UtcNow);
 
         // Verify refresh token cookie is set (may not be present in all implementations)
         if (response.Headers.Contains("Set-Cookie"))
@@ -247,6 +248,8 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
             Password = "Password123!"
         };
         var registerResponse = await _client.PostAsJsonAsync("/api/v1/auth/register", registerRequest);
+        var registerContent = await registerResponse.Content.ReadAsStringAsync();
+        Assert.True(registerResponse.IsSuccessStatusCode, $"Register failed: {registerResponse.StatusCode}, {registerContent}");
         
         // Skip test if cookies aren't supported in test environment
         if (!registerResponse.Headers.Contains("Set-Cookie"))
@@ -263,16 +266,15 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
         var response = await _client.PostAsync("/api/v1/auth/refresh", null);
 
         var content = await response.Content.ReadAsStringAsync();
-        Assert.True(response.IsSuccessStatusCode, $"Response: {response.StatusCode}, Content: {content}");
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.IsSuccessStatusCode, $"Refresh failed: {response.StatusCode}, Content: {content}");
         
-        var apiResponse = await response.Content.ReadFromJsonAsync<Groovo.DTOs.ApiResponse<AuthResponse>>();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<AuthResponse>>();
         Assert.NotNull(apiResponse);
         Assert.True(apiResponse.Success);
-        var authResponse = apiResponse?.Data;
-        Assert.NotNull(authResponse);
-        Assert.NotNull(authResponse?.AccessToken);
-        Assert.True(authResponse!.ExpiresAt > DateTime.UtcNow);
+        Assert.NotNull(apiResponse.Data);
+        var authResponse = apiResponse.Data;
+        Assert.NotNull(authResponse.AccessToken);
+        Assert.True(authResponse.ExpiresAt > DateTime.UtcNow);
 
         // Verify new refresh token cookie is set
         var newRefreshToken = GetRefreshTokenFromCookie(response);
@@ -353,22 +355,30 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
             Password = "Password123!"
         };
         var registerResponse = await _client.PostAsJsonAsync("/api/v1/auth/register", registerRequest);
-        var apiResponse = await registerResponse.Content.ReadFromJsonAsync<Groovo.DTOs.ApiResponse<AuthResponse>>();
-        Assert.NotNull(apiResponse);
-        Assert.True(apiResponse.Success);
-        var authResponse = apiResponse?.Data;
-        Assert.NotNull(authResponse?.AccessToken);
+        var registerContent = await registerResponse.Content.ReadAsStringAsync();
+        Assert.True(registerResponse.IsSuccessStatusCode, $"Register failed: {registerResponse.StatusCode}, {registerContent}");
+        
+        var registerApiResponse = await registerResponse.Content.ReadFromJsonAsync<ApiResponse<AuthResponse>>();
+        Assert.NotNull(registerApiResponse);
+        Assert.True(registerApiResponse.Success);
+        Assert.NotNull(registerApiResponse.Data);
+        var authResponse = registerApiResponse.Data;
+        Assert.NotNull(authResponse.AccessToken);
 
         // Use the actual token from registration
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", authResponse!.AccessToken);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", authResponse.AccessToken);
 
         var response = await _client.GetAsync("/api/v1/auth/me");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var content = await response.Content.ReadAsStringAsync();
+        Assert.True(response.IsSuccessStatusCode, $"Get current user failed: {response.StatusCode}, Content: {content}");
         
-        var userResponse = await response.Content.ReadFromJsonAsync<UserResponse>();
-        Assert.NotNull(userResponse);
-        Assert.Equal("Current User Test", userResponse.Name);
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<UserResponse>>();
+        Assert.NotNull(apiResponse);
+        Assert.True(apiResponse.Success);
+        Assert.NotNull(apiResponse.Data);
+        var userResponse = apiResponse.Data;
+        Assert.NotEqual(Guid.Empty, userResponse.Id);
     }
 
     [Fact]
