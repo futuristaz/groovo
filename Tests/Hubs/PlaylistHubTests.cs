@@ -16,6 +16,7 @@ public class PlaylistHubTests
     private readonly Mock<ILogger<PlaylistHub>> _loggerMock;
     private readonly Mock<IPlaylistRepository> _playlistRepositoryMock;
     private readonly Mock<ISongRepository> _songRepositoryMock;
+    private readonly Mock<IShuffleService> _shuffleServiceMock;
     private readonly PlaylistHub _hub;
     private readonly Mock<HubCallerContext> _contextMock;
     private readonly Mock<IHubCallerClients> _clientsMock;
@@ -31,6 +32,7 @@ public class PlaylistHubTests
         _loggerMock = new Mock<ILogger<PlaylistHub>>();
         _playlistRepositoryMock = new Mock<IPlaylistRepository>();
         _songRepositoryMock = new Mock<ISongRepository>();
+        _shuffleServiceMock = new Mock<IShuffleService>();
         _contextMock = new Mock<HubCallerContext>();
         _clientsMock = new Mock<IHubCallerClients>();
         _groupProxyMock = new Mock<IClientProxy>();
@@ -42,7 +44,8 @@ public class PlaylistHubTests
             _trackerMock.Object,
             _playbackMock.Object,
             _playlistRepositoryMock.Object,
-            _songRepositoryMock.Object
+            _songRepositoryMock.Object,
+            _shuffleServiceMock.Object
         );
 
         _hub.Context = _contextMock.Object;
