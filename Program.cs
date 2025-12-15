@@ -198,12 +198,11 @@ public class Program
             .GetConfiguration());
 
         var storageConfig = app.Services.GetRequiredService<TusStorageConfiguration>();
-        var contentsPath = string.IsNullOrEmpty(pathBase) ? "/contents" : $"{pathBase}/contents";
         app.UseStaticFiles(new StaticFileOptions
         {
             FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
                 Path.Combine(Directory.GetCurrentDirectory(), storageConfig.FinalPath)),
-            RequestPath = contentsPath,
+            RequestPath = "/contents",
             ServeUnknownFileTypes = true,
             DefaultContentType = "application/octet-stream"
         });
