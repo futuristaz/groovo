@@ -55,6 +55,7 @@ public class PlaybackUpdateService : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var playlistRepository = scope.ServiceProvider.GetRequiredService<IPlaylistRepository>();
         var songRepository = scope.ServiceProvider.GetRequiredService<ISongRepository>();
+        var shuffleService = scope.ServiceProvider.GetRequiredService<IShuffleService>();
 
         var activeStates = _playbackStateStore.GetAllActiveStates();
 
@@ -71,7 +72,7 @@ public class PlaybackUpdateService : BackgroundService
                 }
 
                 var timeSinceUpdate = (DateTime.UtcNow - state.LastUpdated).TotalSeconds;
-                var newPosition = state.CurrentPosition + (int)timeSinceUpdate;
+                var newPosition = state.CurrentPosition + timeSinceUpdate;
 
                 if (newPosition >= state.CurrentLength)
                 {
@@ -80,7 +81,24 @@ public class PlaybackUpdateService : BackgroundService
                         var nextSongLength = await songRepository.GetSongLengthAsync(state.NextSongId.Value);
                         if (nextSongLength > 0)
                         {
-                            var followingSongId = await playlistRepository.GetNextSongIdAsync(Guid.Parse(playlistId), state.NextSongId.Value);
+                            // Calculate following song based on shuffle state
+                            Guid? followingSongId;
+                            
+                            if (state.IsShuffleEnabled && state.ShuffleSeed.HasValue)
+                            {
+                                followingSongId = await shuffleService.GetNextShuffledSongAsync(
+                                    Guid.Parse(playlistId),
+                                    state.NextSongId.Value,
+                                    state.ShuffleSeed.Value
+                                );
+                            }
+                            else
+                            {
+                                followingSongId = await playlistRepository.GetNextSongIdAsync(
+                                    Guid.Parse(playlistId),
+                                    state.NextSongId.Value
+                                );
+                            }
                             
                             var updatedState = _playbackStateStore.TryUpdate(playlistId, ps =>
                             {
