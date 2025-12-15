@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+
+          <ExcludeByFile>
+            <File>*Groovo*DTOs*</File>
+            <File>*Groovo*Models*</File>
+            <File>*Groovo*Migrations*</File>
+          </ExcludeByFile>
+
+          <Exclude>
+            [Groovo]*DTOs*
+            [Groovo]*Models*
+            [Groovo]*Migrations*
+          </Exclude>
+
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

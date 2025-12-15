@@ -10,11 +10,7 @@ try {
 
     Write-Host "Running tests with coverage..." -ForegroundColor Cyan
     
-    # Run tests with coverage collection, excluding Models and DTOs folders
-    dotnet test `
-        --collect:"XPlat Code Coverage" `
-        -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.ExcludeByFile="**/*Migrations*/**,**/*migrations*/**" `
-        DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+    dotnet test --settings coverlet.runsettings --collect:"XPlat Code Coverage"
     
     $testExitCode = $LASTEXITCODE
     if ($testExitCode -ne 0) {
