@@ -8,23 +8,26 @@ namespace Groovo.Services.Tus;
 
 public class TusConfigurationFactory
 {
-    private const string TusEndpoint = "/files";
+    private readonly string _tusEndpoint;
     private readonly ILogger<TusConfigurationFactory> _logger;
     private readonly TusStorageConfiguration _storageConfig;
 
     public TusConfigurationFactory(
         ILogger<TusConfigurationFactory> logger,
-        TusStorageConfiguration storageConfig)
+        TusStorageConfiguration storageConfig,
+        IConfiguration configuration)
     {
         _logger = logger;
         _storageConfig = storageConfig;
+        var pathBase = configuration["PathBase"] ?? string.Empty;
+        _tusEndpoint = string.IsNullOrEmpty(pathBase) ? "/files" : $"{pathBase}/files";
     }
 
     public DefaultTusConfiguration GetConfiguration()
     {
         return new DefaultTusConfiguration
         {
-            UrlPath = TusEndpoint,
+            UrlPath = _tusEndpoint,
             Store = new TusDiskStore(_storageConfig.TempPath),
             MetadataParsingStrategy = MetadataParsingStrategy.AllowEmptyValues,
             Events = new Events
