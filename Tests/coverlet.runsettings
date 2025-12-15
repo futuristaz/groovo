@@ -7,15 +7,15 @@
           <Format>cobertura</Format>
 
           <ExcludeByFile>
-            <File>**/DTOs/*.cs</File>
-            <File>**/DTOs/**/*.cs</File>
-            <File>**/Models/*.cs</File>
-            <File>**/Models/**/*.cs</File>
+            <File>*Groovo*DTOs*</File>
+            <File>*Groovo*Models*</File>
+            <File>*Groovo*Migrations*</File>
           </ExcludeByFile>
 
           <Exclude>
-            <Module>Groovo.DTOs</Module>
-            <Module>Groovo.Models</Module>
+            [Groovo]*DTOs*
+            [Groovo]*Models*
+            [Groovo]*Migrations*
           </Exclude>
 
         </Configuration>

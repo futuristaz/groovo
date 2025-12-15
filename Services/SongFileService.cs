@@ -162,11 +162,11 @@ public class SongFileService : ISongFileService
         }
     }
 
-    public Task<bool> DeleteFileAsync(string relativeFilePath)
+    public async Task<bool> DeleteFileAsync(string relativeFilePath)
     {
         if (string.IsNullOrWhiteSpace(relativeFilePath))
         {
-            return Task.FromResult(false);
+            return false;
         }
 
         try
@@ -176,17 +176,25 @@ public class SongFileService : ISongFileService
             if (!File.Exists(fullPath))
             {
                 _logger.LogWarning("File not found for deletion: {FilePath}", fullPath);
-                return Task.FromResult(false);
+                return false;
             }
 
             File.Delete(fullPath);
+            
+            // Verify that the file was actually deleted
+            if (File.Exists(fullPath))
+            {
+                _logger.LogError("Failed to delete file: {FilePath}", fullPath);
+                return false;
+            }
+            
             _logger.LogInformation("Deleted file: {FilePath}", fullPath);
-            return Task.FromResult(true);
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete file: {RelativePath}", relativeFilePath);
-            return Task.FromResult(false);
+            return false;
         }
     }
 }

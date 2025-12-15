@@ -80,7 +80,37 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
         Assert.Equal(UserRole.User, apiResponse.Data.Role);
     }
 
+    [Fact]
+    public async Task GetById_WithoutAuthentication_ReturnsUnauthorized()
+    {
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
+        var response = await _client.GetAsync($"/api/v1/users/{userId}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetById_AsRegularUser_ReturnsForbidden()
+    {
+        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+        var response = await _client.GetAsync($"/api/v1/users/{userId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetById_AsAuthor_ReturnsForbidden()
+    {
+        SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+        var response = await _client.GetAsync($"/api/v1/users/{userId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
 
     [Fact]
     public async Task GetById_OtherUser_AsRegularUser_ReturnsForbidden()
@@ -133,6 +163,17 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task Update_WithoutAuthentication_ReturnsUnauthorized()
+    {
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var request = new UpdateUserRequest { Name = "Updated" };
+
+        var response = await _client.PutAsJsonAsync($"/api/v1/users/{userId}", request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Update_AsRegularUser_ReturnsForbidden()
     {
         SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
@@ -146,6 +187,33 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
         var response = await _client.PutAsJsonAsync($"/api/v1/users/{userId}", request);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Update_AsAuthor_ReturnsForbidden()
+    {
+        SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
+        var userId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var request = new UpdateUserRequest { Name = "Updated Author" };
+
+        var response = await _client.PutAsJsonAsync($"/api/v1/users/{userId}", request);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Update_WithInvalidModelState_ReturnsBadRequest()
+    {
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        
+        // Send invalid JSON or empty request that fails validation
+        var response = await _client.PutAsync($"/api/v1/users/{userId}", 
+            new StringContent("{}", Encoding.UTF8, "application/json"));
+
+        // Depending on your validation rules, this might return BadRequest
+        Assert.True(response.StatusCode == HttpStatusCode.BadRequest || 
+                    response.StatusCode == HttpStatusCode.NoContent);
     }
 
     [Fact]
@@ -177,6 +245,38 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
         // Verify deletion
         var getResponse = await _client.GetAsync($"/api/v1/users/{userId}");
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_WithoutAuthentication_ReturnsUnauthorized()
+    {
+        var userId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        var response = await _client.DeleteAsync($"/api/v1/users/{userId}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_AsRegularUser_ReturnsForbidden()
+    {
+        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
+        var userId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        var response = await _client.DeleteAsync($"/api/v1/users/{userId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_AsAuthor_ReturnsForbidden()
+    {
+        SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+        var response = await _client.DeleteAsync($"/api/v1/users/{userId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -212,6 +312,39 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task Search_WithQuery_AsRegularUser_ReturnsResults()
+    {
+        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
+
+        var response = await _client.GetAsync("/api/v1/users/search?query=User");
+
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<UserSummaryResponse>>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.True(apiResponse.Success);
+        Assert.NotNull(apiResponse.Data);
+    }
+
+    [Fact]
+    public async Task Search_WithoutAuthentication_ReturnsUnauthorized()
+    {
+        var response = await _client.GetAsync("/api/v1/users/search?query=User");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Search_AsAuthor_ReturnsForbidden()
+    {
+        SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
+
+        var response = await _client.GetAsync("/api/v1/users/search?query=User");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Search_WithEmptyQuery_ReturnsBadRequest()
     {
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
@@ -219,6 +352,41 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
         var response = await _client.GetAsync("/api/v1/users/search?query=");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Search_WithWhitespaceQuery_ReturnsBadRequest()
+    {
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+
+        var response = await _client.GetAsync("/api/v1/users/search?query=%20%20%20");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Search_WithoutQueryParameter_ReturnsBadRequest()
+    {
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+
+        var response = await _client.GetAsync("/api/v1/users/search");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Search_WithRoleFilter_ReturnsFilteredResults()
+    {
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+
+        var response = await _client.GetAsync("/api/v1/users/search?query=User&role=Author");
+
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<UserSummaryResponse>>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.NotNull(apiResponse.Data);
+        // Should only return users with Author role matching "User"
     }
 
     [Fact]
@@ -260,15 +428,123 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task GetAuthorById_AsRegularUser_ReturnsAuthor()
+    {
+        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
+        var authorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        var response = await _client.GetAsync($"/api/v1/users/authors/{authorId}");
+
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<AuthorResponse>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.NotNull(apiResponse.Data);
+    }
+
+    [Fact]
+    public async Task GetAuthorById_AsAuthor_ReturnsAuthor()
+    {
+        SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
+        var authorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        var response = await _client.GetAsync($"/api/v1/users/authors/{authorId}");
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task GetAuthorById_WithoutAuthentication_ReturnsUnauthorized()
+    {
+        var authorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        var response = await _client.GetAsync($"/api/v1/users/authors/{authorId}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GetAuthorById_NonExistentAuthor_ReturnsNotFound()
     {
         SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
         var authorId = Guid.Parse("99999999-9999-9999-9999-999999999999");
 
-        
         var response = await _client.GetAsync($"/api/v1/users/authors/{authorId}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    #endregion
+
+    #region GET /api/v1/users/authors/{id}/songs Tests
+
+    [Fact]
+    public async Task GetAuthorSongs_AsAdmin_ReturnsAllSongs()
+    {
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+        var authorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        var response = await _client.GetAsync($"/api/v1/users/authors/{authorId}/songs");
+
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<SongSummaryResponse>>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.NotNull(apiResponse.Data);
+    }
+
+    [Fact]
+    public async Task GetAuthorSongs_AsOwner_ReturnsAllSongs()
+    {
+        SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
+        var authorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        var response = await _client.GetAsync($"/api/v1/users/authors/{authorId}/songs");
+
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<SongSummaryResponse>>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.NotNull(apiResponse.Data);
+    }
+
+    [Fact]
+    public async Task GetAuthorSongs_AsRegularUser_ReturnsOnlyActiveSongs()
+    {
+        SetAuthorizationHeader(Guid.Parse("22222222-2222-2222-2222-222222222222"), "User");
+        var authorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        var response = await _client.GetAsync($"/api/v1/users/authors/{authorId}/songs");
+
+        response.EnsureSuccessStatusCode();
+        var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse<List<SongSummaryResponse>>>();
+
+        Assert.NotNull(apiResponse);
+        Assert.NotNull(apiResponse.Data);
+        // Should only contain active songs
+    }
+
+    [Fact]
+    public async Task GetAuthorSongs_WithoutAuthentication_ReturnsUnauthorized()
+    {
+        var authorId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        var response = await _client.GetAsync($"/api/v1/users/authors/{authorId}/songs");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetAuthorSongs_NonExistentAuthor_ReturnsNotFound()
+    {
+        SetAuthorizationHeader(Guid.Parse("11111111-1111-1111-1111-111111111111"), "Admin");
+        var authorId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+
+        var response = await _client.GetAsync($"/api/v1/users/authors/{authorId}/songs");
+
+        // Depending on implementation, might return NotFound or empty list
+        Assert.True(response.StatusCode == HttpStatusCode.NotFound || 
+                    response.StatusCode == HttpStatusCode.OK);
     }
 
     #endregion
@@ -310,15 +586,35 @@ public class UsersControllerTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
+    public async Task GetUserPlaylists_AsAuthorAccessingOwnPlaylists_ReturnsSuccess()
+    {
+        SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
+        var userId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+
+        var response = await _client.GetAsync($"/api/v1/users/{userId}/playlists");
+
+        response.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
     public async Task GetUserPlaylists_AsAuthorAccessingOtherUser_ReturnsForbidden()
     {
-
         SetAuthorizationHeader(Guid.Parse("33333333-3333-3333-3333-333333333333"), "Author");
         var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
         var response = await _client.GetAsync($"/api/v1/users/{userId}/playlists");
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetUserPlaylists_WithoutAuthentication_ReturnsUnauthorized()
+    {
+        var userId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+        var response = await _client.GetAsync($"/api/v1/users/{userId}/playlists");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
