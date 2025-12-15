@@ -381,4 +381,151 @@ public class PlaylistHubTests
         // Verify that error logging occurred (check that it completes without throwing)
         Assert.True(true);
     }
+
+    [Fact]
+    public async Task ToggleShuffle_EnablesShuffle_WhenDisabled()
+    {
+        var playlistId = "playlist_123";
+        var shuffleSeed = 42;
+        
+        _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns(playlistId);
+        var state = new PlaybackState { IsShuffleEnabled = false };
+        _playbackMock.Setup(p => p.GetOrCreate(playlistId)).Returns(state);
+        _shuffleServiceMock.Setup(s => s.GenerateShuffleSeed()).Returns(shuffleSeed);
+        _playbackMock.Setup(p => p.TryUpdate(playlistId, It.IsAny<Func<PlaybackState, PlaybackState>>()))
+                     .Returns((string id, Func<PlaybackState, PlaybackState> updateFunc) => updateFunc(state));
+
+        await _hub.ToggleShuffle(true);
+
+        Assert.True(state.IsShuffleEnabled);
+        Assert.Equal(shuffleSeed, state.ShuffleSeed);
+        _shuffleServiceMock.Verify(s => s.GenerateShuffleSeed(), Times.Once);
+        _playbackMock.Verify(p => p.TryUpdate(playlistId, It.IsAny<Func<PlaybackState, PlaybackState>>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ToggleShuffle_DisablesShuffle_WhenEnabled()
+    {
+        var playlistId = "playlist_123";
+        
+        _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns(playlistId);
+        var state = new PlaybackState { IsShuffleEnabled = true, ShuffleSeed = 42 };
+        _playbackMock.Setup(p => p.GetOrCreate(playlistId)).Returns(state);
+        _playbackMock.Setup(p => p.TryUpdate(playlistId, It.IsAny<Func<PlaybackState, PlaybackState>>()))
+                     .Returns((string id, Func<PlaybackState, PlaybackState> updateFunc) => updateFunc(state));
+
+        await _hub.ToggleShuffle(false);
+
+        Assert.False(state.IsShuffleEnabled);
+        Assert.Null(state.ShuffleSeed);
+        _shuffleServiceMock.Verify(s => s.GenerateShuffleSeed(), Times.Never);
+        _playbackMock.Verify(p => p.TryUpdate(playlistId, It.IsAny<Func<PlaybackState, PlaybackState>>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ToggleShuffle_DoesNothing_WhenAlreadyInRequestedState()
+    {
+        var playlistId = "playlist_123";
+        
+        _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns(playlistId);
+        var state = new PlaybackState { IsShuffleEnabled = true, ShuffleSeed = 42 };
+        _playbackMock.Setup(p => p.GetOrCreate(playlistId)).Returns(state);
+
+        await _hub.ToggleShuffle(true); // Already enabled
+
+        _playbackMock.Verify(p => p.TryUpdate(It.IsAny<string>(), It.IsAny<Func<PlaybackState, PlaybackState>>()), Times.Never);
+        _shuffleServiceMock.Verify(s => s.GenerateShuffleSeed(), Times.Never);
+    }
+
+    [Fact]
+    public async Task ToggleShuffle_ThrowsException_WhenNotInPlaylist()
+    {
+        _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns((string?)null);
+
+        var exception = await Assert.ThrowsAsync<HubException>(() => _hub.ToggleShuffle(true));
+        Assert.Contains("Not in any playlist", exception.Message);
+    }
+
+    [Fact]
+    public async Task PlaySong_UsesShuffledNextSong_WhenShuffleEnabled()
+    {
+        var playlistId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        var songId = Guid.NewGuid();
+        var shuffledNextSongId = Guid.NewGuid();
+        var shuffleSeed = 42;
+
+        _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns(playlistId.ToString());
+        var state = new PlaybackState 
+        { 
+            CurrentSongId = songId, 
+            IsShuffleEnabled = true,
+            ShuffleSeed = shuffleSeed
+        };
+        _playbackMock.Setup(p => p.GetOrCreate(playlistId.ToString())).Returns(state);
+        _songRepositoryMock.Setup(p => p.GetSongLengthAsync(songId)).ReturnsAsync(300);
+        _shuffleServiceMock.Setup(s => s.GetNextShuffledSongAsync(playlistId, songId, shuffleSeed))
+                          .ReturnsAsync(shuffledNextSongId);
+        _playbackMock.Setup(p => p.TryUpdate(playlistId.ToString(), It.IsAny<Func<PlaybackState, PlaybackState>>()))
+                     .Returns((string id, Func<PlaybackState, PlaybackState> updateFunc) => updateFunc(state));
+
+        await _hub.PlaySong(songId);
+
+        _shuffleServiceMock.Verify(s => s.GetNextShuffledSongAsync(playlistId, songId, shuffleSeed), Times.Once);
+        Assert.Equal(shuffledNextSongId, state.NextSongId);
+    }
+
+    [Fact]
+    public async Task PlaySong_UsesRegularNextSong_WhenShuffleDisabled()
+    {
+        var playlistId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        var songId = Guid.NewGuid();
+        var regularNextSongId = Guid.NewGuid();
+
+        _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns(playlistId.ToString());
+        var state = new PlaybackState 
+        { 
+            CurrentSongId = songId, 
+            IsShuffleEnabled = false
+        };
+        _playbackMock.Setup(p => p.GetOrCreate(playlistId.ToString())).Returns(state);
+        _songRepositoryMock.Setup(p => p.GetSongLengthAsync(songId)).ReturnsAsync(300);
+        _playlistRepositoryMock.Setup(p => p.GetNextSongIdAsync(playlistId, songId))
+                              .ReturnsAsync(regularNextSongId);
+        _playbackMock.Setup(p => p.TryUpdate(playlistId.ToString(), It.IsAny<Func<PlaybackState, PlaybackState>>()))
+                     .Returns((string id, Func<PlaybackState, PlaybackState> updateFunc) => updateFunc(state));
+
+        await _hub.PlaySong(songId);
+
+        _shuffleServiceMock.Verify(s => s.GetNextShuffledSongAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<int>()), Times.Never);
+        _playlistRepositoryMock.Verify(p => p.GetNextSongIdAsync(playlistId, songId), Times.Once);
+        Assert.Equal(regularNextSongId, state.NextSongId);
+    }
+
+    [Fact]
+    public async Task PlaySong_UsesRegularNextSong_WhenShuffleEnabledButNoSeed()
+    {
+        var playlistId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        var songId = Guid.NewGuid();
+        var regularNextSongId = Guid.NewGuid();
+
+        _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns(playlistId.ToString());
+        var state = new PlaybackState 
+        { 
+            CurrentSongId = songId, 
+            IsShuffleEnabled = true,
+            ShuffleSeed = null // Shuffle enabled but no seed (edge case)
+        };
+        _playbackMock.Setup(p => p.GetOrCreate(playlistId.ToString())).Returns(state);
+        _songRepositoryMock.Setup(p => p.GetSongLengthAsync(songId)).ReturnsAsync(300);
+        _playlistRepositoryMock.Setup(p => p.GetNextSongIdAsync(playlistId, songId))
+                              .ReturnsAsync(regularNextSongId);
+        _playbackMock.Setup(p => p.TryUpdate(playlistId.ToString(), It.IsAny<Func<PlaybackState, PlaybackState>>()))
+                     .Returns((string id, Func<PlaybackState, PlaybackState> updateFunc) => updateFunc(state));
+
+        await _hub.PlaySong(songId);
+
+        _shuffleServiceMock.Verify(s => s.GetNextShuffledSongAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<int>()), Times.Never);
+        _playlistRepositoryMock.Verify(p => p.GetNextSongIdAsync(playlistId, songId), Times.Once);
+        Assert.Equal(regularNextSongId, state.NextSongId);
+    }
 }
