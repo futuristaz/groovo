@@ -13,6 +13,7 @@ public class PlaybackUpdateServiceTests
 {
     private readonly Mock<IPlaylistRepository> _mockPlaylistRepo;
     private readonly Mock<ISongRepository> _mockSongRepo;
+    private readonly Mock<IShuffleService> _mockShuffleService;
     private readonly Mock<IPlaybackStateStore<string, PlaybackState>> _mockStateStore;
     private readonly Mock<IHubContext<PlaylistHub>> _mockHubContext;
     private readonly Mock<ILogger<PlaybackUpdateService>> _mockLogger;
@@ -24,6 +25,7 @@ public class PlaybackUpdateServiceTests
     {
         _mockPlaylistRepo = new Mock<IPlaylistRepository>();
         _mockSongRepo = new Mock<ISongRepository>();
+        _mockShuffleService = new Mock<IShuffleService>();
         _mockStateStore = new Mock<IPlaybackStateStore<string, PlaybackState>>();
         _mockHubContext = new Mock<IHubContext<PlaylistHub>>();
         _mockLogger = new Mock<ILogger<PlaybackUpdateService>>();
@@ -38,6 +40,7 @@ public class PlaybackUpdateServiceTests
         var services = new ServiceCollection();
         services.AddScoped(_ => _mockPlaylistRepo.Object);
         services.AddScoped(_ => _mockSongRepo.Object);
+        services.AddScoped(_ => _mockShuffleService.Object);
         _serviceProvider = services.BuildServiceProvider();
     }
 
