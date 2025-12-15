@@ -21,6 +21,7 @@ public class PlaylistHubTests
     private readonly Mock<HubCallerContext> _contextMock;
     private readonly Mock<IHubCallerClients> _clientsMock;
     private readonly Mock<IClientProxy> _groupProxyMock;
+    private readonly Mock<IClientProxy> _othersInGroupProxyMock;
     private readonly Mock<ISingleClientProxy> _callerProxyMock;
     private readonly Mock<IGroupManager> _groupsMock;
     private readonly Guid _userId;
@@ -36,6 +37,7 @@ public class PlaylistHubTests
         _contextMock = new Mock<HubCallerContext>();
         _clientsMock = new Mock<IHubCallerClients>();
         _groupProxyMock = new Mock<IClientProxy>();
+        _othersInGroupProxyMock = new Mock<IClientProxy>();
         _callerProxyMock = new Mock<ISingleClientProxy>();
         _groupsMock = new Mock<IGroupManager>();
 
@@ -62,9 +64,16 @@ public class PlaylistHubTests
         _contextMock.Setup(c => c.ConnectionId).Returns("conn1");
 
         _clientsMock.Setup(c => c.Group(It.IsAny<string>())).Returns(_groupProxyMock.Object);
+        _clientsMock.Setup(c => c.OthersInGroup(It.IsAny<string>())).Returns(_othersInGroupProxyMock.Object);
         _clientsMock.Setup(c => c.Caller).Returns(_callerProxyMock.Object);
 
         _groupProxyMock.Setup(c => c.SendCoreAsync(
+    It.IsAny<string>(),
+    It.IsAny<object[]>(),
+    It.IsAny<CancellationToken>()))
+    .Returns(Task.CompletedTask);
+        
+        _othersInGroupProxyMock.Setup(c => c.SendCoreAsync(
     It.IsAny<string>(),
     It.IsAny<object[]>(),
     It.IsAny<CancellationToken>()))
@@ -528,4 +537,249 @@ public class PlaylistHubTests
         _playlistRepositoryMock.Verify(p => p.GetNextSongIdAsync(playlistId, songId), Times.Once);
         Assert.Equal(regularNextSongId, state.NextSongId);
     }
+
+    #region SendReaction Tests
+
+    [Fact]
+    public async Task SendReaction_SendsReactionToOthers_WhenInPlaylist()
+    {
+        // Arrange
+        var playlistId = Guid.NewGuid();
+        var reaction = EmojiReaction.Heart;
+        var username = "TestUser";
+        Groovo.DTOs.Responses.EmojiReactionResponse? capturedResponse = null;
+
+        var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, _userId.ToString()),
+            new Claim(ClaimTypes.Name, username)
+        }));
+        _contextMock.Setup(c => c.User).Returns(claimsPrincipal);
+        _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns(playlistId.ToString());
+        
+        _othersInGroupProxyMock.Setup(c => c.SendCoreAsync(
+            "ReceiveReaction",
+            It.IsAny<object[]>(),
+            It.IsAny<CancellationToken>()))
+            .Callback<string, object[], CancellationToken>((method, args, token) => 
+            {
+                if (args.Length > 0 && args[0] is Groovo.DTOs.Responses.EmojiReactionResponse resp)
+                {
+                    capturedResponse = resp;
+                }
+            })
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _hub.SendReaction(reaction);
+
+        // Assert
+        Assert.NotNull(capturedResponse);
+        Assert.Equal(reaction, capturedResponse.Reaction);
+        Assert.Equal(username, capturedResponse.Username);
+        
+        _othersInGroupProxyMock.Verify(
+            c => c.SendCoreAsync(
+                "ReceiveReaction",
+                It.IsAny<object[]>(),
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Once
+        );
+    }
+
+    [Fact]
+    public async Task SendReaction_UsesEmail_WhenNameNotAvailable()
+    {
+        // Arrange
+        var playlistId = Guid.NewGuid();
+        var reaction = EmojiReaction.Fire;
+        var email = "test@example.com";
+        Groovo.DTOs.Responses.EmojiReactionResponse? capturedResponse = null;
+
+        var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, _userId.ToString()),
+            new Claim(ClaimTypes.Email, email)
+        }));
+        _contextMock.Setup(c => c.User).Returns(claimsPrincipal);
+        _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns(playlistId.ToString());
+        
+        _othersInGroupProxyMock.Setup(c => c.SendCoreAsync(
+            "ReceiveReaction",
+            It.IsAny<object[]>(),
+            It.IsAny<CancellationToken>()))
+            .Callback<string, object[], CancellationToken>((method, args, token) => 
+            {
+                if (args.Length > 0 && args[0] is Groovo.DTOs.Responses.EmojiReactionResponse resp)
+                {
+                    capturedResponse = resp;
+                }
+            })
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _hub.SendReaction(reaction);
+
+        // Assert
+        Assert.NotNull(capturedResponse);
+        Assert.Equal(email, capturedResponse.Username);
+        
+        _othersInGroupProxyMock.Verify(
+            c => c.SendCoreAsync(
+                "ReceiveReaction",
+                It.IsAny<object[]>(),
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Once
+        );
+    }
+
+    [Fact]
+    public async Task SendReaction_UsesAnonymous_WhenNoUserInfo()
+    {
+        // Arrange
+        var playlistId = Guid.NewGuid();
+        var reaction = EmojiReaction.Laughing;
+        Groovo.DTOs.Responses.EmojiReactionResponse? capturedResponse = null;
+
+        var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, _userId.ToString())
+        }));
+        _contextMock.Setup(c => c.User).Returns(claimsPrincipal);
+        _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns(playlistId.ToString());
+        
+        _othersInGroupProxyMock.Setup(c => c.SendCoreAsync(
+            "ReceiveReaction",
+            It.IsAny<object[]>(),
+            It.IsAny<CancellationToken>()))
+            .Callback<string, object[], CancellationToken>((method, args, token) => 
+            {
+                if (args.Length > 0 && args[0] is Groovo.DTOs.Responses.EmojiReactionResponse resp)
+                {
+                    capturedResponse = resp;
+                }
+            })
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _hub.SendReaction(reaction);
+
+        // Assert
+        Assert.NotNull(capturedResponse);
+        Assert.Equal("Anonymous", capturedResponse.Username);
+        
+        _othersInGroupProxyMock.Verify(
+            c => c.SendCoreAsync(
+                "ReceiveReaction",
+                It.IsAny<object[]>(),
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Once
+        );
+    }
+
+    [Fact]
+    public async Task SendReaction_ThrowsHubException_WhenNotInPlaylist()
+    {
+        // Arrange
+        var reaction = EmojiReaction.Heart;
+        _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns((string?)null);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<HubException>(
+            () => _hub.SendReaction(reaction)
+        );
+
+        Assert.Equal("Not in any playlist", exception.Message);
+        _othersInGroupProxyMock.Verify(
+            c => c.SendCoreAsync(It.IsAny<string>(), It.IsAny<object[]>(), It.IsAny<CancellationToken>()),
+            Times.Never
+        );
+    }
+
+    [Theory]
+    [InlineData(EmojiReaction.Heart)]
+    [InlineData(EmojiReaction.Fire)]
+    [InlineData(EmojiReaction.Laughing)]
+    [InlineData(EmojiReaction.Crying)]
+    [InlineData(EmojiReaction.StarEyes)]
+    [InlineData(EmojiReaction.Clapping)]
+    [InlineData(EmojiReaction.ThumbsUp)]
+    [InlineData(EmojiReaction.PartyPopper)]
+    [InlineData(EmojiReaction.MusicalNote)]
+    [InlineData(EmojiReaction.Rocket)]
+    public async Task SendReaction_HandlesAllReactionTypes(EmojiReaction reaction)
+    {
+        // Arrange
+        var playlistId = Guid.NewGuid();
+        var username = "TestUser";
+        Groovo.DTOs.Responses.EmojiReactionResponse? capturedResponse = null;
+
+        var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, _userId.ToString()),
+            new Claim(ClaimTypes.Name, username)
+        }));
+        _contextMock.Setup(c => c.User).Returns(claimsPrincipal);
+        _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns(playlistId.ToString());
+        
+        _othersInGroupProxyMock.Setup(c => c.SendCoreAsync(
+            "ReceiveReaction",
+            It.IsAny<object[]>(),
+            It.IsAny<CancellationToken>()))
+            .Callback<string, object[], CancellationToken>((method, args, token) => 
+            {
+                if (args.Length > 0 && args[0] is Groovo.DTOs.Responses.EmojiReactionResponse resp)
+                {
+                    capturedResponse = resp;
+                }
+            })
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _hub.SendReaction(reaction);
+
+        // Assert
+        Assert.NotNull(capturedResponse);
+        Assert.Equal(reaction, capturedResponse.Reaction);
+        
+        _othersInGroupProxyMock.Verify(
+            c => c.SendCoreAsync(
+                "ReceiveReaction",
+                It.IsAny<object[]>(),
+                It.IsAny<CancellationToken>()
+            ),
+            Times.Once
+        );
+    }
+
+    [Fact]
+    public async Task SendReaction_SendsToCorrectPlaylistGroup()
+    {
+        // Arrange
+        var playlistId = Guid.NewGuid();
+        var reaction = EmojiReaction.Heart;
+        var username = "TestUser";
+
+        var claimsPrincipal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, _userId.ToString()),
+            new Claim(ClaimTypes.Name, username)
+        }));
+        _contextMock.Setup(c => c.User).Returns(claimsPrincipal);
+        _trackerMock.Setup(t => t.GetPlaylist("conn1")).Returns(playlistId.ToString());
+
+        // Act
+        await _hub.SendReaction(reaction);
+
+        // Assert
+        _clientsMock.Verify(
+            c => c.OthersInGroup($"playlist_{playlistId}"),
+            Times.Once
+        );
+    }
+
+    #endregion
 }
