@@ -9,6 +9,10 @@ using Groovo.DTOs.Requests;
 using Groovo.DTOs.Responses;
 using System.IdentityModel.Tokens.Jwt;
 using Groovo.Tests.Factories;
+using Microsoft.Extensions.DependencyInjection;
+using Groovo.Data.Contexts;
+using Groovo.Models;
+using Microsoft.AspNetCore.Identity;
 
 namespace Groovo.Tests.Controllers;
 
@@ -67,6 +71,37 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
             }
         }
         return null;
+    }
+
+    private async Task<User> SeedUserAsync(string email, string password)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>();
+
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = email,
+            Name = "Test User",
+            Role = UserRole.User,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        user.PasswordHash = passwordHasher.HashPassword(user, password);
+
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        return user;
+    }
+
+    private async Task SaveChangesAsync()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await context.SaveChangesAsync();
     }
 
     #endregion
@@ -406,6 +441,208 @@ public class AuthControllerTests : IClassFixture<CustomWebApplicationFactory>
         SetAuthorizationHeader(userId, "User");
 
         var response = await _client.GetAsync("/api/v1/auth/me");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    #endregion
+
+    #region UpdateProfile Tests
+
+    [Fact]
+    public async Task UpdateProfile_AllFields_UpdatesSuccessfully()
+    {
+        var user = await SeedUserAsync("updateall@example.com", "password");
+        SetAuthorizationHeader(user.Id, "User");
+
+        var updateRequest = new UpdateProfileRequest
+        {
+            Name = "Updated Name",
+            Bio = "Updated Bio",
+            ImageUrl = "https://example.com/updated.jpg",
+            Email = "newemail@example.com"
+        };
+
+        var response = await _client.PutAsJsonAsync("/api/v1/auth/me", updateRequest);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateProfile_PartialUpdate_UpdatesOnlyProvidedFields()
+    {
+        var user = await SeedUserAsync("partial@example.com", "password");
+        user.Name = "Original Name";
+        user.Bio = "Original Bio";
+        await SaveChangesAsync();
+        
+        SetAuthorizationHeader(user.Id, "User");
+
+        var updateRequest = new UpdateProfileRequest
+        {
+            Name = "New Name"
+        };
+
+        var response = await _client.PutAsJsonAsync("/api/v1/auth/me", updateRequest);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateProfile_EmailConflict_ReturnsConflict()
+    {
+        var user1 = await SeedUserAsync("user1@example.com", "password");
+        await SeedUserAsync("user2@example.com", "password");
+        
+        SetAuthorizationHeader(user1.Id, "User");
+
+        var updateRequest = new UpdateProfileRequest
+        {
+            Email = "user2@example.com"
+        };
+
+        var response = await _client.PutAsJsonAsync("/api/v1/auth/me", updateRequest);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateProfile_InvalidEmail_ReturnsBadRequest()
+    {
+        var user = await SeedUserAsync("invalidemail@example.com", "password");
+        SetAuthorizationHeader(user.Id, "User");
+
+        var updateRequest = new UpdateProfileRequest
+        {
+            Email = "not-an-email"
+        };
+
+        var response = await _client.PutAsJsonAsync("/api/v1/auth/me", updateRequest);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateProfile_Unauthorized_ReturnsUnauthorized()
+    {
+        var updateRequest = new UpdateProfileRequest
+        {
+            Name = "Unauthorized Update"
+        };
+
+        var response = await _client.PutAsJsonAsync("/api/v1/auth/me", updateRequest);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateProfile_NonExistentUser_ReturnsNotFound()
+    {
+        var userId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+        SetAuthorizationHeader(userId, "User");
+
+        var updateRequest = new UpdateProfileRequest
+        {
+            Name = "Ghost User"
+        };
+
+        var response = await _client.PutAsJsonAsync("/api/v1/auth/me", updateRequest);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    #endregion
+
+    #region ChangePassword Tests
+
+    [Fact]
+    public async Task ChangePassword_ValidPassword_ChangesSuccessfully()
+    {
+        var user = await SeedUserAsync("changepass@example.com", "OldPassword123");
+        SetAuthorizationHeader(user.Id, "User");
+
+        var changeRequest = new ChangePasswordRequest
+        {
+            CurrentPassword = "OldPassword123",
+            NewPassword = "NewPassword456"
+        };
+
+        var response = await _client.PutAsJsonAsync("/api/v1/auth/me/password", changeRequest);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        // Verify new password works by logging in
+        var loginRequest = new LoginRequest
+        {
+            Email = "changepass@example.com",
+            Password = "NewPassword456"
+        };
+
+        var loginResponse = await _client.PostAsJsonAsync("/api/v1/auth/login", loginRequest);
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangePassword_IncorrectCurrentPassword_ReturnsBadRequest()
+    {
+        var user = await SeedUserAsync("wrongpass@example.com", "CorrectPassword");
+        SetAuthorizationHeader(user.Id, "User");
+
+        var changeRequest = new ChangePasswordRequest
+        {
+            CurrentPassword = "WrongPassword",
+            NewPassword = "NewPassword456"
+        };
+
+        var response = await _client.PutAsJsonAsync("/api/v1/auth/me/password", changeRequest);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangePassword_WeakPassword_ReturnsBadRequest()
+    {
+        var user = await SeedUserAsync("weakpass@example.com", "StrongPassword123");
+        SetAuthorizationHeader(user.Id, "User");
+
+        var changeRequest = new ChangePasswordRequest
+        {
+            CurrentPassword = "StrongPassword123",
+            NewPassword = "123"
+        };
+
+        var response = await _client.PutAsJsonAsync("/api/v1/auth/me/password", changeRequest);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangePassword_Unauthorized_ReturnsUnauthorized()
+    {
+        var changeRequest = new ChangePasswordRequest
+        {
+            CurrentPassword = "SomePassword",
+            NewPassword = "NewPassword456"
+        };
+
+        var response = await _client.PutAsJsonAsync("/api/v1/auth/me/password", changeRequest);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangePassword_NonExistentUser_ReturnsNotFound()
+    {
+        var userId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+        SetAuthorizationHeader(userId, "User");
+
+        var changeRequest = new ChangePasswordRequest
+        {
+            CurrentPassword = "OldPassword",
+            NewPassword = "NewPassword456"
+        };
+
+        var response = await _client.PutAsJsonAsync("/api/v1/auth/me/password", changeRequest);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
