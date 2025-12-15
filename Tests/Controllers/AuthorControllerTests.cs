@@ -354,7 +354,7 @@ public class AuthorControllerTests : IClassFixture<CustomWebApplicationFactory>
         SetAuthorizationHeader(_authorId, "Author");
 
         // Act
-        var response = await _client.GetAsync($"/api/v1/authors/songs/{_song1Id}");
+        var response = await _client.GetAsync($"/api/v1/author/songs/{_song1Id}");
 
         // Assert
         response.EnsureSuccessStatusCode();
