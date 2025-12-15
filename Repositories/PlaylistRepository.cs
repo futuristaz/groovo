@@ -180,4 +180,15 @@ public class PlaylistRepository : IPlaylistRepository
 
         return nextSongId == Guid.Empty ? null : nextSongId;
     }
+
+    public async Task<List<Guid>> GetAllActiveSongIdsInOrderAsync(Guid playlistId)
+    {
+        return await _context.PlaylistSongs
+            .Where(ps => ps.PlaylistId == playlistId)
+            .Include(ps => ps.Song)
+            .Where(ps => ps.Song.IsActive)
+            .OrderBy(ps => ps.Order)
+            .Select(ps => ps.SongId)
+            .ToListAsync();
+    }
 }
