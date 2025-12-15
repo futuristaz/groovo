@@ -6,6 +6,7 @@ namespace Groovo.Services.Hub;
 public class PlaybackStateStore : IPlaybackStateStore<string, PlaybackState>
 {
     private readonly ConcurrentDictionary<string, PlaybackState> _states = new();
+    private readonly object _lock = new();
 
     public PlaybackState GetOrCreate(string playlistId)
     {
@@ -37,31 +38,43 @@ public class PlaybackStateStore : IPlaybackStateStore<string, PlaybackState>
 
     public async Task IncrementUsers(string playlistId)
     {
-        await Task.Run(() => _states.AddOrUpdate(
-            playlistId,
-            _ => new PlaybackState { CurrentlyListening = 1 },
-            (_, existingState) =>
+        await Task.Run(() =>
+        {
+            lock (_lock)
             {
-                existingState.CurrentlyListening++;
-                return existingState;
+                _states.AddOrUpdate(
+                    playlistId,
+                    _ => new PlaybackState { CurrentlyListening = 1 },
+                    (_, existingState) =>
+                    {
+                        existingState.CurrentlyListening++;
+                        return existingState;
+                    }
+                );
             }
-        ));
+        });
     }
 
     public async Task DecrementUsers(string playlistId)
     {
-        await Task.Run(() => _states.AddOrUpdate(
-            playlistId,
-            _ => new PlaybackState { CurrentlyListening = 0 },
-            (_, existingState) =>
+        await Task.Run(() =>
+        {
+            lock (_lock)
             {
-                if (existingState.CurrentlyListening > 0)
-                {
-                    existingState.CurrentlyListening--;
-                }
-                return existingState;
+                _states.AddOrUpdate(
+                    playlistId,
+                    _ => new PlaybackState { CurrentlyListening = 0 },
+                    (_, existingState) =>
+                    {
+                        if (existingState.CurrentlyListening > 0)
+                        {
+                            existingState.CurrentlyListening--;
+                        }
+                        return existingState;
+                    }
+                );
             }
-        ));
+        });
     }
 
     public IEnumerable<KeyValuePair<string, PlaybackState>> GetAllActiveStates()
