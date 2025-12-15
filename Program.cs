@@ -177,6 +177,12 @@ public class Program
             }
         }
         
+        var pathBase = builder.Configuration["PathBase"];
+        if (!string.IsNullOrEmpty(pathBase))
+        {
+            app.UsePathBase(pathBase);
+        }
+
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
@@ -192,18 +198,20 @@ public class Program
             .GetConfiguration());
 
         var storageConfig = app.Services.GetRequiredService<TusStorageConfiguration>();
+        var contentsPath = string.IsNullOrEmpty(pathBase) ? "/contents" : $"{pathBase}/contents";
         app.UseStaticFiles(new StaticFileOptions
         {
             FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
                 Path.Combine(Directory.GetCurrentDirectory(), storageConfig.FinalPath)),
-            RequestPath = "/contents",
+            RequestPath = contentsPath,
             ServeUnknownFileTypes = true,
             DefaultContentType = "application/octet-stream"
         });
 
         app.MapControllers();
 
-        app.MapHub<PlaylistHub>("/live");
+        var hubPath = string.IsNullOrEmpty(pathBase) ? "/live" : $"{pathBase}/live";
+        app.MapHub<PlaylistHub>(hubPath);
         
         app.Run();
     }
