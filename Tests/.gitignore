@@ -10,3 +10,5 @@ coverage.xml
 *.coverage
 *.coveragexml
 coveragereport/
+
+unified.cobertura.xml

@@ -7,7 +7,7 @@ public interface IPlaylistRepository
     Task<List<Playlist>> GetAllAsync(bool includePrivate = false);
     Task<Playlist?> GetByIdAsync(Guid id, bool includeOwners = false, bool includeSongs = false);
     Task<Playlist?> GetByIdWithSongDetailsAsync(Guid id);
-    Task<List<Playlist>> GetByUserIdAsync(Guid userId, bool onlyOwned = false);
+    Task<List<Playlist>> GetByUserIdAsync(Guid userId, bool showFullList = false);
     Task<List<Playlist>> SearchAsync(string query);
     Task<Playlist> CreateAsync(Playlist playlist);
     Task UpdateAsync(Playlist playlist);

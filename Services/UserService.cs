@@ -141,10 +141,9 @@ namespace Groovo.Services
         {
             try
             {
-                var playlists = await _playlistRepository.GetByUserIdAsync(userId, onlyOwned: !showFullList);
+                var playlists = await _playlistRepository.GetByUserIdAsync(userId, showFullList);
 
                 return playlists
-                    .Where(p => showFullList || p.IsPublic)
                     .OrderByDescending(p => p.CreatedAt)
                     .Select(p => new PlaylistSummaryResponse(
                         p.Id,
