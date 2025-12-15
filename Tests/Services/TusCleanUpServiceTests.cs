@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Moq;
 using Groovo.Services.Tus;
+using System.Runtime.InteropServices;
 
 namespace Groovo.Tests.Services;
 
@@ -298,6 +299,12 @@ public class TusCleanupServiceTests : IDisposable
     [Fact]
     public async Task CleanupOldUploads_FileDeleteFails_ContinuesWithOtherFiles()
     {
+        // Skip on Linux/macOS - file locking behavior is different (files can be deleted while open)
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return;
+        }
+
         // Arrange
         var oldFile1 = CreateTestFile("old1.bin", DateTime.UtcNow.AddHours(-3));
         var oldFile2 = CreateTestFile("old2.bin", DateTime.UtcNow.AddHours(-3));
