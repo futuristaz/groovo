@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Groovo.DTOs;
+using Groovo.DTOs.Responses;
 using Groovo.Services.Hub;
 using Groovo.Repositories;
 
@@ -295,4 +296,42 @@ public class PlaylistHub : Hub
             throw new HubException("Failed to get playback state");
         }
     }
+
+    public async Task SendReaction(EmojiReaction reaction)
+    {
+        var playlistId = _userPlaylistTracker.GetPlaylist(Context.ConnectionId);
+
+        if (playlistId == null)
+        {
+            throw new HubException("Not in any playlist");
+        }
+
+        try
+        {
+            var username = Context.User?.FindFirstValue(ClaimTypes.Name) 
+                ?? Context.User?.FindFirstValue(ClaimTypes.Email) 
+                ?? "Anonymous";
+
+            var reactionResponse = new EmojiReactionResponse
+            {
+                Reaction = reaction,
+                Username = username
+            };
+
+            await Clients.OthersInGroup($"playlist_{playlistId}")
+                .SendAsync("ReceiveReaction", reactionResponse);
+
+            _logger.LogInformation(
+                "User {Username} sent reaction {Reaction} to playlist {PlaylistId}",
+                username, reaction, playlistId);
+        }
+        catch (HubException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending reaction {Reaction} to playlist {PlaylistId}", 
+                reaction, playlistId);
+            throw new HubException("Failed to send reaction");
+        }
+    }
+
 }
