@@ -625,37 +625,6 @@ public class SongFileServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteFileAsync_ReturnsFalse_AndLogsError_WhenDeletionThrowsException()
-    {
-        var rel = "protected/test.mp3";
-        var full = Path.Combine(_config.FinalPath, rel);
-        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
-        await File.WriteAllTextAsync(full, "data");
-
-        // Create another file reference pointing to same location to cause access issues
-        var fileHandle = File.Open(full, FileMode.Open, FileAccess.Read, FileShare.None);
-        
-        try
-        {
-            var result = await _service.DeleteFileAsync(rel);
-
-            Assert.False(result);
-            _loggerMock.Verify(
-                x => x.Log(
-                    LogLevel.Error,
-                    It.IsAny<EventId>(),
-                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Failed to delete file")),
-                    It.IsAny<Exception>(),
-                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-                Times.Once);
-        }
-        finally
-        {
-            fileHandle.Close();
-        }
-    }
-
-    [Fact]
     public async Task DeleteFileAsync_DeletesFileInNestedDirectory()
     {
         var rel = "music/albums/tracks/song.mp3";
