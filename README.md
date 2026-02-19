@@ -49,7 +49,7 @@ JWT_SECRET=your-jwt-secret-key-must-be-at-least-32-characters-long
 # CORS Settings, used only in development
 CORS_ALLOWED_ORIGIN=http://localhost:3000
 
-# Volume Paths
+# Volume Paths, place the actual paths ON THE HOST MACHINE where you want to store the data
 SQLITE_PATH=./uploads/database
 UPLOADS_PATH=./uploads
 LOGS_PATH=./logs
