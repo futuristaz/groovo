@@ -61,6 +61,7 @@ public class Program
         builder.Services.AddScoped<Repositories.ISongRepository, Repositories.SongRepository>();
         builder.Services.AddScoped<Repositories.IUserRepository, Repositories.UserRepository>();
         builder.Services.AddScoped<Repositories.IRefreshTokenRepository, Repositories.RefreshTokenRepository>();
+        builder.Services.AddScoped<Repositories.IShareLinkRepository, Repositories.ShareLinkRepository>();
 
         // Register services
         builder.Services.AddScoped<IJwtService, JwtService>();
@@ -69,6 +70,7 @@ public class Program
         builder.Services.AddScoped<IUserService, UserService>();
         builder.Services.AddScoped<ISongService, SongService>();
         builder.Services.AddScoped<IPlaylistService, PlaylistService>();
+        builder.Services.AddScoped<IShareLinkService, ShareLinkService>();
         builder.Services.AddScoped<IPasswordHasher<Models.User>, PasswordHasher<Models.User>>();
         
         // Register Hub services
@@ -188,6 +190,7 @@ public class Program
             app.UseSwagger();
             app.UseSwaggerUI();
             app.UseCors(DefaultCorsPolicy);
+            app.Logger.LogInformation("Running in local container – DataProtection warnings are expected.");
         }
 
         app.UseAuthentication();
