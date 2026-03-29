@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Groovo.Data.Contexts;
 using Groovo.Models;
 using Groovo.DTOs;
+using FuzzySharp;
 
 namespace Groovo.Repositories;
 
@@ -43,20 +44,30 @@ public class UserRepository : IUserRepository
 
     public async Task<List<User>> SearchAsync(string query, UserRole? role = null)
     {
-        var queryable = _context.Users
-            .Where(u => u.Role != UserRole.Admin && (
-                u.Name.Contains(query) ||
-                (u.Bio != null && u.Bio.Contains(query))
-            ));
+        var user_query = _context.Users
+            .Where(u => u.Role != UserRole.Admin);
 
         if (role.HasValue)
         {
-            queryable = queryable.Where(u => u.Role == role.Value);
+            user_query = user_query.Where(u => u.Role == role.Value);
         }
 
-        return await queryable
-            .OrderBy(u => u.Name)
-            .ToListAsync();
+        var users = await user_query.ToListAsync();
+
+        return users
+            .Select(u => new
+            {
+                User = u,
+                Score = new[]
+                {
+                    Fuzz.PartialRatio(query, u.Name),
+                    Fuzz.PartialRatio(query, u.Bio)
+                }.Max()
+            })
+            .Where(x => x.Score >= 60)
+            .OrderByDescending(x => x.Score)
+            .Select(x => x.User)
+            .ToList();
     }
 
     public async Task<User> CreateAsync(User user)

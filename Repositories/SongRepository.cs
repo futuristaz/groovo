@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Groovo.Data.Contexts;
 using Groovo.Models;
 using Groovo.DTOs;
+using FuzzySharp;
 
 namespace Groovo.Repositories;
 
@@ -92,16 +93,28 @@ public class SongRepository : ISongRepository
 
     public async Task<List<Song>> SearchAsync(string query)
     {
-        return await _context.Songs
+        var songs = await _context.Songs
             .Include(s => s.SongAuthors)
             .ThenInclude(sa => sa.User)
-            .Where(s => s.IsActive && (
-                s.Name.Contains(query) ||
-                s.Genre.Contains(query) ||
-                s.SongAuthors.Any(sa => sa.User.Name.Contains(query))
-            ))
-            .OrderBy(s => s.Name)
+            .Where(s => s.IsActive)
             .ToListAsync();
+
+        return songs
+            .Select(s => new
+            {
+                Song = s,
+                Score = new[]
+                {
+                    Fuzz.PartialRatio(query, s.Name),
+                    Fuzz.PartialRatio(query, s.Genre),
+                    s.SongAuthors.Select(sa => Fuzz.PartialRatio(query, sa.User.Name))
+                                 .DefaultIfEmpty(0).Max()
+                }.Max()
+            })
+            .Where(x => x.Score >= 60)
+            .OrderByDescending(x => x.Score)
+            .Select(x => x.Song)
+            .ToList();
     }
 
     public async Task<List<string>> GetSongAuthorNamesAsync(Guid songId)
