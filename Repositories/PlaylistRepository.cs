@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Groovo.Data.Contexts;
 using Groovo.Models;
+using FuzzySharp;
 
 namespace Groovo.Repositories;
 
@@ -81,14 +82,25 @@ public class PlaylistRepository : IPlaylistRepository
 
     public async Task<List<Playlist>> SearchAsync(string query)
     {
-        return await _context.Playlists
+        var playlists = await _context.Playlists
             .Include(p => p.PlaylistSongs)
-            .Where(p => p.IsPublic && (
-                p.Name.Contains(query) ||
-                (p.Description != null && p.Description.Contains(query))
-            ))
-            .OrderBy(p => p.Name)
+            .Where(p => p.IsPublic)
             .ToListAsync();
+
+        return playlists
+            .Select(p => new
+            {
+                Playlist = p,
+                Score = new[]
+                {
+                    Fuzz.PartialRatio(query, p.Name),
+                    Fuzz.PartialRatio(query, p.Description),
+                }.Max()
+            })
+            .Where(x => x.Score >= 60)
+            .OrderByDescending(x => x.Score)
+            .Select(x => x.Playlist)
+            .ToList();
     }
 
     public async Task<Playlist> CreateAsync(Playlist playlist)
