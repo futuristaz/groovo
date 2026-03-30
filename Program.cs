@@ -12,6 +12,7 @@ using tusdotnet;
 using Serilog;
 using Groovo.Services.Hub;
 using System.Diagnostics.CodeAnalysis;
+using Microsoft.OpenApi.Models;
 
 namespace Groovo;
 
@@ -25,7 +26,7 @@ public class Program
 
         var loggerConfig = new LoggerConfiguration()
             .MinimumLevel.Debug();
-  
+
         loggerConfig.WriteTo.File("logs/app.log",
             rollingInterval: RollingInterval.Day,
             restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Warning
@@ -61,6 +62,7 @@ public class Program
         builder.Services.AddScoped<Repositories.ISongRepository, Repositories.SongRepository>();
         builder.Services.AddScoped<Repositories.IUserRepository, Repositories.UserRepository>();
         builder.Services.AddScoped<Repositories.IRefreshTokenRepository, Repositories.RefreshTokenRepository>();
+        builder.Services.AddScoped<Repositories.IShareLinkRepository, Repositories.ShareLinkRepository>();
 
         // Register services
         builder.Services.AddScoped<IJwtService, JwtService>();
@@ -69,11 +71,12 @@ public class Program
         builder.Services.AddScoped<IUserService, UserService>();
         builder.Services.AddScoped<ISongService, SongService>();
         builder.Services.AddScoped<IPlaylistService, PlaylistService>();
+        builder.Services.AddScoped<IShareLinkService, ShareLinkService>();
         builder.Services.AddScoped<IPasswordHasher<Models.User>, PasswordHasher<Models.User>>();
-        
+
         // Register Hub services
         builder.Services.AddScoped<IShuffleService, ShuffleService>();
-        
+
         // Register TUS services
         builder.Services.AddSingleton<TusStorageConfiguration>();
         builder.Services.AddScoped<ISongFileService, SongFileService>();
@@ -94,7 +97,7 @@ public class Program
                 policy =>
                 {
                     var allowedOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>();
-                    
+
                     if (allowedOrigins != null && allowedOrigins.Length > 0)
                     {
                         policy.WithOrigins(allowedOrigins)
@@ -117,16 +120,41 @@ public class Program
             options.DefaultApiVersion = new Microsoft.AspNetCore.Mvc.ApiVersion(1, 0);
             options.ReportApiVersions = true;
         });
-        
+
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(c =>
         {
-            c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "Groovo API", Version = "v1" });
+            c.SwaggerDoc("v1", new OpenApiInfo { Title = "Groovo API", Version = "v1" });
             c.SchemaFilter<EnumDescriptionSchemaFilter>();
-            
+
             var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
             var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
             c.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
+
+            c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            {
+                Name = "Authorization",
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "JWT",
+                In = ParameterLocation.Header,
+                Description = "Enter your JWT token like: Bearer {token}"
+            });
+
+            c.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Bearer"
+                        }
+                    },
+                    Array.Empty<string>()
+                }
+            });
         });
         builder.Services.AddVersionedApiExplorer(options =>
         {
@@ -158,9 +186,12 @@ public class Program
 
             if (!context.Database.IsInMemory())
             {
-                try {
+                try
+                {
                     await context.Database.MigrateAsync();
-                } catch (Exception ex) {
+                }
+                catch (Exception ex)
+                {
                     Log.Fatal(ex, "Database migration failed");
                     throw;
                 }
@@ -176,7 +207,7 @@ public class Program
                 await DatabaseSeeder.SeedAsync(context);
             }
         }
-        
+
         var pathBase = builder.Configuration["PathBase"];
         if (!string.IsNullOrEmpty(pathBase))
         {
@@ -188,6 +219,7 @@ public class Program
             app.UseSwagger();
             app.UseSwaggerUI();
             app.UseCors(DefaultCorsPolicy);
+            app.Logger.LogInformation("Running in local container – DataProtection warnings are expected.");
         }
 
         app.UseAuthentication();
@@ -211,7 +243,7 @@ public class Program
 
         var hubPath = string.IsNullOrEmpty(pathBase) ? "/live" : $"{pathBase}/live";
         app.MapHub<PlaylistHub>(hubPath);
-        
+
         app.Run();
     }
 }

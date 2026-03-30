@@ -36,4 +36,5 @@ public class User
     public List<SongAuthor> SongAuthors { get; set; } = new List<SongAuthor>();
     public List<PlaylistOwner> PlaylistOwners { get; set; } = new List<PlaylistOwner>();
     public List<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+    public List<ShareLink> ShareLinks { get; set; } = new List<ShareLink>();
 }
