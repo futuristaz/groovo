@@ -63,7 +63,9 @@ public class Program
         builder.Services.AddScoped<Repositories.IUserRepository, Repositories.UserRepository>();
         builder.Services.AddScoped<Repositories.IRefreshTokenRepository, Repositories.RefreshTokenRepository>();
         builder.Services.AddScoped<Repositories.IShareLinkRepository, Repositories.ShareLinkRepository>();
+        builder.Services.AddScoped<Repositories.IFollowRepository, Repositories.FollowRepository>();
 
+        
         // Register services
         builder.Services.AddScoped<IJwtService, JwtService>();
         builder.Services.AddScoped<IAuthService, AuthService>();
@@ -73,6 +75,7 @@ public class Program
         builder.Services.AddScoped<IPlaylistService, PlaylistService>();
         builder.Services.AddScoped<IShareLinkService, ShareLinkService>();
         builder.Services.AddScoped<IPasswordHasher<Models.User>, PasswordHasher<Models.User>>();
+        builder.Services.AddScoped<IFollowService, FollowService>();
 
         // Register Hub services
         builder.Services.AddScoped<IShuffleService, ShuffleService>();
