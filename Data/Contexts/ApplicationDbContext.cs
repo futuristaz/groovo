@@ -14,6 +14,7 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<PlaylistOwner> PlaylistOwners { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<ShareLink> ShareLinks { get; set; }
+    public DbSet<UserFollow> UserFollows {get; set;}
 
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
