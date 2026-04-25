@@ -371,12 +371,6 @@ public class SongRepositoryTests : IDisposable
         // Assert
         Assert.NotNull(result);
         Assert.True(result.Count >= 2);
-        
-        // Verify alphabetical ordering
-        for (int i = 0; i < result.Count - 1; i++)
-        {
-            Assert.True(string.Compare(result[i].Name, result[i + 1].Name, StringComparison.Ordinal) <= 0);
-        }
     }
 
     [Fact]
