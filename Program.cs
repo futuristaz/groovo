@@ -64,6 +64,7 @@ public class Program
         builder.Services.AddScoped<Repositories.IRefreshTokenRepository, Repositories.RefreshTokenRepository>();
         builder.Services.AddScoped<Repositories.IShareLinkRepository, Repositories.ShareLinkRepository>();
         builder.Services.AddScoped<Repositories.IFollowRepository, Repositories.FollowRepository>();
+        builder.Services.AddScoped<Repositories.INotificationRepository, Repositories.NotificationRepository>();
 
         
         // Register services
@@ -246,7 +247,8 @@ public class Program
 
         var hubPath = string.IsNullOrEmpty(pathBase) ? "/live" : $"{pathBase}/live";
         app.MapHub<PlaylistHub>(hubPath);
-
+        app.MapHub<NotificationHub>("/notifications");
+        
         app.Run();
     }
 }

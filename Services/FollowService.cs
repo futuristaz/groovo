@@ -1,6 +1,8 @@
 using Groovo.DTOs.Responses;
 using Groovo.Models;
 using Groovo.Repositories;
+using Microsoft.AspNetCore.SignalR;
+using Groovo.Hubs;
 
 namespace Groovo.Services;
 
@@ -9,16 +11,22 @@ public class FollowService : IFollowService
     private readonly ILogger<FollowService> _logger;
     private readonly IFollowRepository _followRepository;
     private readonly IUserRepository _userRepository;
+    private readonly INotificationRepository _notificationRepository;
+    private readonly IHubContext<NotificationHub> _hubContext;
 
     public FollowService(
         ILogger<FollowService> logger,
         IFollowRepository followRepository,
-        IUserRepository userRepository)
-    {
-        _logger = logger;
-        _followRepository = followRepository;
-        _userRepository = userRepository;
-    }
+        IUserRepository userRepository,
+        INotificationRepository notificationRepository,
+        IHubContext<NotificationHub> hubContext)
+        {
+            _logger = logger;
+            _followRepository = followRepository;
+            _userRepository = userRepository;
+            _notificationRepository = notificationRepository;
+            _hubContext = hubContext;
+        }
 
     public async Task<bool> FollowAsync(Guid currentUserId, Guid targetUserId)
     {
@@ -42,6 +50,34 @@ public class FollowService : IFollowService
                 CreatedAt = DateTime.UtcNow
             });
 
+            var theyFollowBack = await _followRepository.ExistsAsync(targetUserId, currentUserId);
+            var actor = await _userRepository.GetByAsync(id: currentUserId);
+
+            if (theyFollowBack)
+            {
+                await CreateAndSendNotification(
+                    recipientId: targetUserId,
+                    actorId: currentUserId,
+                    actor: actor!,
+                    type: NotificationType.NewFriend
+                );
+                await CreateAndSendNotification(
+                    recipientId: currentUserId,
+                    actorId: targetUserId,
+                    actor: targetUser,
+                    type: NotificationType.NewFriend
+                );
+            }
+            else
+            {
+                await CreateAndSendNotification(
+                    recipientId: targetUserId,
+                    actorId: currentUserId,
+                    actor: actor!,
+                    type: NotificationType.NewFollower
+                );
+            }
+
             _logger.LogInformation(
                 "User {FollowerId} followed user {FollowedId}",
                 currentUserId, targetUserId);
@@ -53,6 +89,40 @@ public class FollowService : IFollowService
             _logger.LogError(ex, "Error following user {TargetUserId}", targetUserId);
             throw;
         }
+    }
+
+    private async Task CreateAndSendNotification(Guid recipientId, Guid actorId, User actor, NotificationType type)
+    {
+        var notification = new Notification
+        {
+            Id = Guid.NewGuid(),
+            RecipientId = recipientId,
+            ActorId = actorId,
+            Type = type,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _notificationRepository.AddAsync(notification);
+
+        var message = type == NotificationType.NewFriend
+            ? $"{actor.Name} and you are now friends!"
+            : $"{actor.Name} started following you.";
+
+        var response = new NotificationResponse
+        {
+            Id = notification.Id,
+            ActorId = actorId,
+            ActorName = actor.Name,
+            ActorImageUrl = actor.ImageUrl,
+            Type = type.ToString(),
+            Message = message,
+            IsRead = false,
+            CreatedAt = notification.CreatedAt
+        };
+
+        await _hubContext.Clients
+            .Group($"user_{recipientId}")
+            .SendAsync("ReceiveNotification", response);
     }
 
     public async Task<bool> UnfollowAsync(Guid currentUserId, Guid targetUserId)
