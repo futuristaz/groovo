@@ -11,6 +11,7 @@
   <PropertyGroup>
     <CoverletOutput>TestResults/</CoverletOutput>
     <CollectCoverage>true</CollectCoverage>
+    <CoverletOutputFormat>opencover</CoverletOutputFormat>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,7 +28,8 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.10" /> 
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="9.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.*" />
   </ItemGroup>
 
   <ItemGroup>
