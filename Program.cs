@@ -17,7 +17,7 @@ using Microsoft.OpenApi.Models;
 namespace Groovo;
 
 [ExcludeFromCodeCoverage]
-public class Program
+public partial class Program
 {
     public static async Task Main(string[] args)
     {
@@ -250,5 +250,8 @@ public class Program
         app.MapHub<NotificationHub>("/notifications");
         
         app.Run();
+
     }
 }
+public partial class Program { }
+
